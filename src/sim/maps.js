@@ -53,6 +53,11 @@ function newMap(id, name, look) {
     wheels: [],
     spawns: [],
     lamps: [], // window light quads: [x, y, z, yaw, w, h]
+    streets: [],
+    fieldSeeds: [],
+    square: null, // a paved square { x, z, r }
+    parks: [], // city parks { x0, z0, size }
+    farms: [], // farmyards { x, z }
     groupsRaw: [],
     roost: null,
     title: null,
@@ -421,7 +426,7 @@ function saltmere() {
     rock: '#9C8270',
     stone: '#CDB9A0',
     sea: '#1E5866',
-    walls: ['#F4EBDD', '#EFE2CC', '#F7F0E4', '#E9D6B8', '#F1DCC7', '#DDE4E0'],
+    walls: ['#F4EBDD', '#EFE2CC', '#F2D7A6', '#EBC08C', '#E8B4A0', '#F4E6B8', '#C9D9D0', '#F1DCC7', '#E9A884'],
     roofs: ['#C0563A', '#B04A30', '#CC6844', '#A9452F', '#D07650'],
     fields: ['#D9B35A', '#C9A44B', '#8DA556', '#A8B866', '#B8865A', '#E1C26B'],
   });
@@ -464,6 +469,7 @@ function saltmere() {
 
   const rng = makeRng(`${seed}:build`);
   const square = { x: 20, z: -10 };
+  map.square = { x: square.x, z: square.z, r: 22 };
   const inTown = (x, z) => Math.hypot(x - 10, z - 5) < 150;
   // streets: radial lines from the square and two rings
   const streets = [];
@@ -898,6 +904,7 @@ function stormfield() {
     ringPerches(map, x + 8, groundAt(map, x + 8, z - 12) + 15.4, z - 12, 2.4, 8);
     map.lamps.push([house.x, house.y + 3.6, house.z + 5.05, 0, 1.2, 1.4]);
   }
+  map.farms = farms;
   for (const [x, z] of [[-150, -160], [170, 150]]) {
     const y = groundAt(map, x, z);
     map.props.push({ kind: 'windmill', x, z, y, yaw: 0.6, s: 1, top: y + 18, r: 4 });
@@ -995,6 +1002,7 @@ function lantern() {
       const dc = Math.hypot(mx - centre.x, mz - centre.z);
       if ((bx === 1 && bz === -1) || (bx === -3 && bz === 1)) {
         // two parks
+        map.parks.push({ x0, z0, size });
         for (let k = 0; k < 8; k++) {
           const t = addTree(map, x0 + rng.range(4, size - 4), z0 + rng.range(4, size - 4), rng.range(6, 9), rng.range(2.4, 3.4), 'round');
           ringPerches(map, t.x, t.y + t.h * 0.92, t.z, t.r * 0.55, 4, 'tree');

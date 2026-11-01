@@ -16,7 +16,7 @@ const FLOCK_CAP = 760;
 const WHEEL_CAP = 70;
 const CLOUD_CAP = 90;
 const STEP = 1 / 30;
-const SIZE = 2.1; // a flock bird's size (the mesh is about 0.95 u long, 1.3 u across)
+const SIZE = 1.85; // a flock bird's size (the mesh is about 0.95 u long, 1.3 u across)
 const ASH = new THREE.Color('#8D8794');
 const INK = new THREE.Color('#231A2E');
 const LOOK_KEYS = ['back', 'belly', 'head', 'accent', 'beak'];
@@ -593,7 +593,8 @@ export class Birds {
       } else {
         this.sat[i] = 0;
         const p = e.puffs[this.puff[i]];
-        const r = Math.max(1.2, p.r * 0.85);
+        // a slow wave of breathing runs back through the flock, puff after puff
+        const r = Math.max(1.4, p.r * 1.02) * (1 + 0.14 * Math.sin(this.time * 1.7 - this.puff[i] * 0.9));
         tx = p.x + ox * r;
         ty = p.y + oy * r;
         tz = p.z + oz * r;
@@ -650,8 +651,8 @@ export class Birds {
           const dy = y - this.py[j];
           const dz = z - this.pz[j];
           const d2 = dx * dx + dy * dy + dz * dz;
-          if (d2 < 0.81 && d2 > 1e-6) {
-            const s = (0.9 - Math.sqrt(d2)) * 18;
+          if (d2 < 1.69 && d2 > 1e-6) {
+            const s = (1.3 - Math.sqrt(d2)) * 16;
             ax += dx * s;
             ay += dy * s;
             az += dz * s;

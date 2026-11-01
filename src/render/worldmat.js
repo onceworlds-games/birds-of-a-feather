@@ -14,6 +14,8 @@ export function worldUniforms() {
     uDusk: { value: 0 }, // 0 day → 1 night: windows and lamps light up
     uCloud: { value: new THREE.Vector2() },
     uCloudAmt: { value: 1 },
+    uFocus: { value: new THREE.Vector3() }, // what the camera follows: things between it and the camera thin out
+    uFade: { value: 0 },
   };
 }
 
@@ -45,6 +47,8 @@ uniform float uTime;
 uniform float uDusk;
 uniform vec2 uCloud;
 uniform float uCloudAmt;
+uniform vec3 uFocus;
+uniform float uFade;
 ${NOISE}
 // a perturbed normal from a height gradient (dh/du, dh/dv) over surface coordinates uv, in world space
 vec3 bumpNormal(vec3 N, vec2 uv, vec2 dh) {
@@ -69,11 +73,11 @@ vec3 pN = normalize(vWNormal);
   float kind = vSurf.x;
   vec2 uv = vSurf.yz;
   float seed = vSurf.w;
-  float far = clamp(length(fwidth(uv)) * 2.2, 0.0, 1.0); // fades fine detail with distance
+  float far = clamp(length(fwidth(uv)) * 1.6, 0.0, 1.0); // fades fine detail with distance
   if (kind > 0.5 && kind < 1.5) {
     // barrel tiles: rows down the slope, humps across, each tile a little different, moss and age in patches
-    float tw = 0.52;
-    float rh = 0.4;
+    float tw = 0.6;
+    float rh = 0.5;
     float row = floor(uv.y / rh);
     float uu = uv.x / tw + row * 0.5;
     float tile = floor(uu);
@@ -88,51 +92,150 @@ vec3 pN = normalize(vWNormal);
     c = mix(c, c * vec3(0.78, 0.82, 0.62), smoothstep(0.55, 0.8, age) * 0.6);
     c = mix(c, vec3(0.42, 0.4, 0.36), smoothstep(0.75, 0.95, id) * 0.25);
     diffuseColor.rgb = c;
-    float dhu = cos(fu * 3.14159) * 3.14159 / tw * 0.05 * (1.0 - far);
-    float dhv = (fv < 0.15 ? -0.6 : 0.08) * (1.0 - far);
+    float near = (1.0 - far) * (1.0 - far);
+    float dhu = cos(fu * 3.14159) * 3.14159 / tw * 0.05 * near;
+    float dhv = (fv < 0.15 ? -0.5 : 0.07) * near;
     pN = bumpNormal(pN, uv, vec2(dhu, dhv));
   } else if (kind > 1.5 && kind < 2.5) {
-    // plaster: a stone plinth, grime at the foot, and storeys of shuttered windows (a door on the street side)
+    // plaster: a stone plinth, grime at the foot, and windows by style (vSdat.w): 0-4 houses with shutters of that colour,
+    // 5 city blocks, 6 a church's arched windows, 7 a bell tower with a clock and a belfry, 8 none
     float W = vSdat.x;
     float H = vSdat.y;
     float flags = vSdat.z;
-    float shutter = vSdat.w;
+    float style = vSdat.w;
     vec3 wall = diffuseColor.rgb;
     float grain = fbm3(uv * vec2(1.3, 2.1) + seed * 9.0);
     vec3 c = wall * (0.94 + 0.08 * grain);
-    c *= mix(0.78, 1.0, smoothstep(0.0, 1.6, uv.y));
-    if (uv.y < 0.45) c = mix(wall * vec3(0.72, 0.68, 0.62), c, 0.25);
-    float storey = 2.9;
-    float level = floor(uv.y / storey);
-    float fy = uv.y - level * storey;
-    float n = max(1.0, floor(W / 2.5));
-    float sp = W / n;
-    float col = floor(uv.x / sp);
-    float fx = uv.x - (col + 0.5) * sp;
-    bool door = flags > 0.5 && level < 0.5 && abs(col - floor(n * 0.5)) < 0.5;
-    float ww = door ? 0.55 : 0.42;
-    float wy0 = door ? 0.0 : (level < 0.5 ? 0.95 : 0.85);
-    float wy1 = door ? 2.15 : wy0 + 1.25;
-    float top = H - 0.55;
-    if (uv.y < top && uv.x > 0.4 && uv.x < W - 0.4 && W > 1.6) {
-      float inX = step(abs(fx), ww);
-      float inY = step(wy0, fy) * step(fy, wy1);
-      float frame = step(abs(fx), ww + 0.09) * step(wy0 - 0.09, fy) * step(fy, wy1 + 0.07);
-      vec3 sh = shutter < 0.5 ? vec3(0.17, 0.42, 0.55) : shutter < 1.5 ? vec3(0.22, 0.45, 0.33) : shutter < 2.5 ? vec3(0.12, 0.56, 0.56) : shutter < 3.5 ? vec3(0.76, 0.58, 0.28) : vec3(0.52, 0.27, 0.2);
-      float shut = (1.0 - inX) * step(abs(fx), ww + 0.5) * inY * (door ? 0.0 : 1.0);
-      if (frame > 0.5) c = mix(c, wall * 1.08, 0.9 - far * 0.5);
-      if (shut > 0.5) {
-        float slat = 0.85 + 0.15 * step(0.5, fract(fy * 7.0));
-        c = mix(c, sh * mix(slat, 1.0, far), 1.0 - far * 0.4);
+    c *= mix(0.74, 1.0, smoothstep(0.0, 1.8, uv.y));
+    // streaks under the eaves and from the sills
+    c *= 1.0 - 0.07 * smoothstep(H - 1.2, H, uv.y) * (1.0 - far);
+    if (uv.y < 0.45) c = mix(wall * vec3(0.7, 0.66, 0.6), c, 0.2);
+    // a corner quoin line
+    float edge = min(uv.x, W - uv.x);
+    c *= mix(0.9, 1.0, smoothstep(0.0, 0.18, edge));
+    if (style < 4.5) {
+      float storey = 2.9;
+      float level = floor(uv.y / storey);
+      float fy = uv.y - level * storey;
+      float n = max(1.0, floor(W / 2.5));
+      float sp = W / n;
+      float col = floor(uv.x / sp);
+      float fx = uv.x - (col + 0.5) * sp;
+      bool door = flags > 0.5 && level < 0.5 && abs(col - floor(n * 0.5)) < 0.5;
+      float ww = door ? 0.55 : 0.42;
+      float wy0 = door ? 0.0 : (level < 0.5 ? 0.95 : 0.85);
+      float wy1 = door ? 2.15 : wy0 + 1.25;
+      float top = H - 0.55;
+      // a string course between storeys
+      if (level > 0.5 && fy < 0.12) c *= 0.9;
+      if (uv.y < top && uv.x > 0.4 && uv.x < W - 0.4 && W > 1.6 && uv.y + (wy1 - fy) < top + 0.3) {
+        float inX = step(abs(fx), ww);
+        float inY = step(wy0, fy) * step(fy, wy1);
+        float frame = step(abs(fx), ww + 0.1) * step(wy0 - 0.14, fy) * step(fy, wy1 + 0.08);
+        vec3 sh = style < 0.5 ? vec3(0.17, 0.42, 0.55) : style < 1.5 ? vec3(0.22, 0.45, 0.33) : style < 2.5 ? vec3(0.12, 0.56, 0.56) : style < 3.5 ? vec3(0.76, 0.58, 0.28) : vec3(0.52, 0.27, 0.2);
+        float open = h21(vec2(col * 1.7, level + seed * 13.0));
+        float sw = open < 0.3 ? 0.0 : 0.5; // some windows have their shutters closed
+        float shut = (1.0 - inX) * step(abs(fx), ww + sw) * inY * (door ? 0.0 : 1.0);
+        if (frame > 0.5) c = mix(c, wall * 1.1, 0.9 - far * 0.5);
+        // the sill's shadow
+        if (fy < wy0 - 0.14 && fy > wy0 - 0.3 && abs(fx) < ww + 0.1 && !door) c *= mix(0.78, 1.0, far);
+        if (shut > 0.5) {
+          float slat = 0.82 + 0.18 * step(0.5, fract(fy * 7.0));
+          c = mix(c, sh * mix(slat, 1.0, far), 1.0 - far * 0.4);
+        }
+        if (inX * inY > 0.5) {
+          float wid = h21(vec2(col, level) + seed * 31.0);
+          vec3 glass = door ? vec3(0.3, 0.19, 0.13) : vec3(0.15, 0.17, 0.23);
+          if (open < 0.3 && !door) glass = sh * 0.95; // closed: the shutters cover the glass
+          glass += vec3(0.13, 0.12, 0.14) * smoothstep(wy0 + 0.5, wy1, fy) * (door || open < 0.3 ? 0.0 : 1.0);
+          // a cross of glazing bars
+          if (!door && open >= 0.3 && (abs(fx) < 0.035 || abs(fy - (wy0 + wy1) * 0.5) < 0.035)) glass = wall * 0.95;
+          c = mix(c, glass, 1.0 - far * 0.35);
+          float lit = step(wid, 0.2 + uDusk * 0.6) * smoothstep(0.08, 0.6, uDusk) * (door ? 0.35 : open < 0.3 ? 0.25 : 1.0);
+          surfEmit += vec3(1.0, 0.62, 0.26) * lit * (0.75 + 0.5 * h21(vec2(wid, 3.1))) * 1.6;
+        }
       }
-      if (inX * inY > 0.5) {
-        float wid = h21(vec2(col, level) + seed * 31.0);
-        vec3 glass = door ? vec3(0.32, 0.2, 0.14) : vec3(0.16, 0.18, 0.24);
-        // the top half of a window catches the sky
-        glass += vec3(0.12, 0.1, 0.12) * smoothstep(wy0 + 0.6, wy1, fy) * (door ? 0.0 : 1.0);
-        c = mix(c, glass, 1.0 - far * 0.35);
-        float lit = step(wid, 0.18 + uDusk * 0.62) * smoothstep(0.08, 0.6, uDusk) * (door ? 0.4 : 1.0);
-        surfEmit += vec3(1.0, 0.62, 0.26) * lit * (0.75 + 0.5 * h21(vec2(wid, 3.1))) * 1.6;
+    } else if (style < 5.5) {
+      // a city block: a cornice, shopfronts on the ground floor, then storeys of tall framed panes
+      float storey = 3.6;
+      float level = floor(uv.y / storey);
+      float fy = uv.y - level * storey;
+      float n = max(1.0, floor(W / 3.0));
+      float sp = W / n;
+      float col = floor(uv.x / sp);
+      float fx = uv.x - (col + 0.5) * sp;
+      float wid = h21(vec2(col, level) + seed * 31.0);
+      if (uv.y > H - 0.9) c = wall * (uv.y > H - 0.35 ? 1.12 : 0.72);
+      else if (level < 0.5) {
+        if (abs(fx) < sp * 0.42 && fy > 0.25 && fy < 2.7) {
+          vec3 shop = vec3(0.14, 0.16, 0.2) + vec3(0.1) * smoothstep(1.4, 2.7, fy);
+          c = mix(c, shop, 1.0 - far * 0.3);
+          surfEmit += vec3(1.0, 0.7, 0.35) * step(wid, 0.25 + uDusk * 0.7) * smoothstep(0.1, 0.5, uDusk) * 1.3;
+        }
+        if (fy > 2.8 && fy < 3.3) c = mix(c, (wid < 0.5 ? vec3(0.55, 0.2, 0.18) : vec3(0.2, 0.36, 0.3)), 0.85 - far * 0.3);
+      } else {
+        if (fy < 0.15) c *= 0.88;
+        float inX = step(abs(fx), sp * 0.26);
+        float inY = step(0.85, fy) * step(fy, 3.0);
+        float frame = step(abs(fx), sp * 0.26 + 0.12) * step(0.7, fy) * step(fy, 3.1);
+        if (frame > 0.5) c = mix(c, wall * 1.12, 0.85 - far * 0.5);
+        if (inX * inY > 0.5) {
+          vec3 glass = vec3(0.16, 0.19, 0.25) + vec3(0.16, 0.15, 0.17) * smoothstep(1.6, 3.0, fy);
+          if (abs(fx) < 0.04) glass = wall;
+          c = mix(c, glass, 1.0 - far * 0.35);
+          float lit = step(wid, 0.15 + uDusk * 0.55) * smoothstep(0.08, 0.6, uDusk);
+          surfEmit += mix(vec3(1.0, 0.62, 0.28), vec3(0.85, 0.9, 1.0), step(0.8, h21(vec2(wid, 7.0)))) * lit * (0.7 + 0.5 * h21(vec2(wid, 3.1))) * 1.5;
+        }
+      }
+    } else if (style < 6.5) {
+      // a church: tall arched windows that glow at dusk
+      float n = max(1.0, floor(W / 4.2));
+      float sp = W / n;
+      float col = floor(uv.x / sp);
+      float fx = uv.x - (col + 0.5) * sp;
+      float r = 0.65;
+      float y0 = 2.6;
+      float y1 = H - 2.2;
+      float inside = step(abs(fx), r) * step(y0, uv.y) * step(uv.y, y1 - r) + step(length(vec2(fx, uv.y - (y1 - r))), r);
+      float rim = step(abs(fx), r + 0.18) * step(y0 - 0.2, uv.y) * step(uv.y, y1 - r) + step(length(vec2(fx, uv.y - (y1 - r))), r + 0.18);
+      if (rim > 0.5) c = mix(c, wall * 0.84, 0.8 - far * 0.4);
+      if (inside > 0.5) {
+        vec3 glass = vec3(0.16, 0.18, 0.28);
+        float lead = step(0.5, fract(uv.y * 2.2)) * step(0.5, fract(fx * 2.2 + 0.25));
+        glass = mix(glass, vec3(0.3, 0.16, 0.3), lead * 0.6);
+        c = mix(c, glass, 1.0 - far * 0.3);
+        surfEmit += mix(vec3(1.0, 0.55, 0.25), vec3(0.6, 0.4, 1.0), lead) * smoothstep(0.1, 0.6, uDusk) * 1.4;
+      }
+      if (flags > 0.5 && abs(uv.x - W * 0.5) < 0.95 && uv.y < 3.1) {
+        float arch = step(uv.y, 2.15) + step(length(vec2(uv.x - W * 0.5, uv.y - 2.15)), 0.95);
+        if (arch > 0.5) c = vec3(0.32, 0.2, 0.13);
+      }
+    } else if (style < 7.5) {
+      // a bell tower: a clock face below a belfry of arched openings
+      float fx = uv.x - W * 0.5;
+      float bel0 = H - 5.2;
+      float bel1 = H - 1.4;
+      float r = 0.75;
+      float inside = step(abs(fx), r) * step(bel0, uv.y) * step(uv.y, bel1 - r) + step(length(vec2(fx, uv.y - (bel1 - r))), r);
+      if (abs(uv.y - (bel0 - 0.3)) < 0.22 || abs(uv.y - (H - 0.4)) < 0.3) c *= 0.82;
+      if (inside > 0.5) {
+        c = mix(c, vec3(0.1, 0.09, 0.11), 1.0 - far * 0.3);
+        surfEmit += vec3(1.0, 0.7, 0.4) * smoothstep(0.3, 0.9, uDusk) * 0.6;
+      }
+      vec2 cp = vec2(fx, uv.y - (bel0 - 1.9));
+      float cr = length(cp);
+      if (cr < 1.15) {
+        c = cr > 1.0 ? wall * 0.5 : vec3(0.95, 0.92, 0.84);
+        float ang = atan(cp.x, cp.y);
+        float tick = step(0.94, cos(ang * 12.0)) * step(0.78, cr) * step(cr, 0.95);
+        c = mix(c, vec3(0.12), tick);
+        // the hands at ten to seven
+        vec2 hd1 = vec2(sin(-2.62), cos(-2.62));
+        vec2 hd2 = vec2(sin(-1.05), cos(-1.05));
+        float h1 = step(abs(cp.x * hd1.y - cp.y * hd1.x), 0.06) * step(0.0, dot(cp, hd1)) * step(cr, 0.55);
+        float h2 = step(abs(cp.x * hd2.y - cp.y * hd2.x), 0.045) * step(0.0, dot(cp, hd2)) * step(cr, 0.85);
+        c = mix(c, vec3(0.1), max(h1, h2));
+        surfEmit += vec3(1.0, 0.85, 0.55) * step(cr, 1.0) * smoothstep(0.2, 0.8, uDusk) * 0.5;
       }
     }
     diffuseColor.rgb = c;
@@ -160,6 +263,19 @@ vec3 pN = normalize(vWNormal);
     float stripe = step(0.5, fract(uv.x / 0.7));
     diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.97, 0.94, 0.88), stripe * (1.0 - far * 0.5));
   }
+}
+`;
+
+// whatever stands between the camera and the flock it follows thins out in a dither, so the flock is never hidden
+const SEE_THROUGH = /* glsl */ `
+if (uFade > 0.0) {
+  vec3 ab = uFocus - cameraPosition;
+  float t = clamp(dot(vWPos - cameraPosition, ab) / dot(ab, ab), 0.0, 1.0);
+  float d = length(vWPos - (cameraPosition + ab * t));
+  float r = mix(3.0, 12.0, t);
+  float k = smoothstep(r, r * 0.55, d) * (1.0 - smoothstep(0.82, 0.95, t)) * uFade;
+  float ign = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
+  if (k * 0.9 > ign) discard;
 }
 `;
 
@@ -200,6 +316,7 @@ export function worldMaterial(uniforms, opts = {}) {
       );
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>\n${FRAG_DECL}`)
+      .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>\n${SEE_THROUGH}`)
       .replace('#include <color_fragment>', `#include <color_fragment>\n${SURFACES}`)
       .replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>\nnormal = normalize((viewMatrix * vec4(pN, 0.0)).xyz);`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\ntotalEmissiveRadiance += surfEmit;`)
@@ -275,7 +392,7 @@ export class Builder {
   box(x, y, z, w, h, d, yaw = 0, { top = true, bottom = false, shadeFoot = 1 } = {}) {
     const c = Math.cos(yaw);
     const s = Math.sin(yaw);
-    const P = (u, v, yy) => [x + c * u - s * v, y + yy, z + s * u + c * v];
+    const P = (u, v, yy) => [x + c * u + s * v, y + yy, z + s * u - c * v];
     const hw = w / 2;
     const hd = d / 2;
     const b0 = P(-hw, -hd, 0);

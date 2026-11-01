@@ -240,6 +240,7 @@ attribute vec4 iShape;  // beak, crest, tail, streamers
 uniform float time;
 uniform vec3 ink;
 varying vec3 vColor;
+varying vec3 vFlock;
 varying vec3 vNormal;
 varying vec3 vWorld;
 varying float vFlash;
@@ -330,12 +331,16 @@ void main() {
   #ifdef LEAD
   vec3 back = iBack; vec3 belly = iBelly; vec3 head = iHead; vec3 accent = iAccent; vec3 beak = iBeak;
   #else
-  vec3 back = iColor;
-  vec3 belly = mix(ink, iColor, 0.38);
-  vec3 head = iColor * 0.8;
-  vec3 accent = mix(iColor, ink, 0.5);
+  // each bird a shade of its own; a lighter panel on the inner wing, a dark head and dark tips, so it reads as a bird
+  float shade = 0.84 + 0.3 * fract(sin(iAnim.x * 91.7) * 4375.5);
+  vec3 fc = iColor * shade;
+  vec3 back = fc * 0.9;
+  vec3 belly = mix(ink, fc, 0.45);
+  vec3 head = mix(fc, ink, 0.45);
+  vec3 accent = mix(fc, ink, 0.62);
   vec3 beak = vec3(0.92, 0.7, 0.26);
   if (iFx.y > 4.5 && iFx.y < 5.5) accent = vec3(1.0, 0.78, 0.3);
+  if (part > 0.5 && part < 1.5) back = min(fc * 1.18 + 0.04, vec3(1.0));
   #endif
   vec3 c = back;
   if (region > 0.5 && region < 1.5) c = belly;
@@ -343,6 +348,7 @@ void main() {
   else if (region > 2.5 && region < 3.5) c = accent;
   else if (region > 3.5) c = beak;
   vColor = c;
+  vFlock = iColor;
   vRegion = region;
   vFlash = iFx.x;
   vFlair = iFx.y;
@@ -361,6 +367,7 @@ uniform vec3 hemiGround;
 uniform float glow;
 uniform float time;
 varying vec3 vColor;
+varying vec3 vFlock;
 varying vec3 vNormal;
 varying vec3 vWorld;
 varying float vFlash;
@@ -390,6 +397,10 @@ void main() {
   if (flair > 2.5 && flair < 3.5) col += vec3(1.0, 0.95, 0.85) * step(0.985, fract(sin(dot(floor(vWorld * 3.0), vec3(12.9, 78.2, 37.7))) * 43758.5)) * (0.6 + 0.4 * sin(time * 9.0 + vWorld.x));
   if (flair > 3.5 && flair < 4.5) col += vec3(1.0, 0.85, 0.4) * (0.25 + glow * 0.8) * step(2.5, vRegion) * step(vRegion, 3.5);
   if (flair > 5.5 && flair < 6.5) col += vec3(1.0, 0.45, 0.15) * (0.2 + 0.25 * sin(time * 6.0 + vWorld.z)) * sheen;
+  #ifdef LEAD
+  // a lead bird wears its flock's colour as a glowing edge, so it stands out of any crowd
+  col += vFlock * pow(1.0 - abs(dot(n, v)), 2.0) * 1.3 + vFlock * 0.08;
+  #endif
   col = mix(col, vec3(1.0, 0.98, 0.92), clamp(vFlash, 0.0, 1.0) * 0.85);
   gl_FragColor = vec4(col, 1.0);
   #include <tonemapping_fragment>

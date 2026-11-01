@@ -19,11 +19,11 @@ export class Net {
    * room: a platform room (or `stubRoom()`); now(): ms on the platform clock.
    * on: { events(list), spawn(flock), dawn(rid), sundown(standings) } (all optional).
    */
-  constructor(room, { now, on = {}, seed } = {}) {
+  constructor(room, { now, on = {}, seed, mapId = 'saltmere' } = {}) {
     this.room = room;
     this.now = now;
     this.on = on;
-    this.sky = new Sky({ mapId: 'saltmere', seed: seed ?? hashString(String(Date.now())) % 1e9, judgeDelay: SKY.judgeDelay, authority: false });
+    this.sky = new Sky({ mapId, seed: seed ?? hashString(String(Date.now())) % 1e9, judgeDelay: SKY.judgeDelay, authority: false });
     this.sky.drainEvents();
     this.authority = false;
     this.dawnAt = now();

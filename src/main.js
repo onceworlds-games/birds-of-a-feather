@@ -25,6 +25,7 @@ const ow = window.onceworlds ?? null;
 const params = new URLSearchParams(location.search);
 const LOCAL = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) || location.hostname.endsWith('.localhost');
 const AUTO = LOCAL && params.get('autoplay') === '1';
+const TEST_MAP = (AUTO && params.get('map')) || 'saltmere';
 const SAVE_KEY = 'birds-of-a-feather:profile';
 
 /** Read the SDK without ever throwing into the game. */
@@ -147,6 +148,7 @@ function makeNet(r) {
   net?.dispose();
   net = new Net(r, {
     now,
+    mapId: TEST_MAP,
     on: {
       events: (list) => {
         if (!S.mig) onEvents(list, net.sky);
@@ -555,6 +557,12 @@ function updateCamera(dt, sky) {
     camera.updateProjectionMatrix();
   }
   camera.updateMatrixWorld();
+  // roofs and trees between the camera and the flock thin out
+  if (world) {
+    const U = world.uniforms;
+    U.uFade.value += ((chasing ? 1 : 0) - U.uFade.value) * (1 - Math.exp(-dt * 4));
+    if (me.L) U.uFocus.value.set(me.L.x, me.L.y - 1, me.L.z);
+  }
 }
 
 /** Lean in on a big moment: the camera closes to k of its distance for t seconds. */
@@ -977,11 +985,11 @@ function startPlace(index) {
 
 /** Leave a Migration place (if one is running) and put the shared sky's world back. */
 function endMigration() {
-  if (!S.mig && world?.map.id === 'saltmere') return;
+  if (!S.mig && world?.map.id === net.sky.opts.mapId) return;
   S.mig = null;
   S.paused = false;
   fx.setStorm(false);
-  setWorld('saltmere');
+  setWorld(net.sky.opts.mapId);
   birds.reset();
   birds.setRoost(null);
   fx.clearFeathers();
@@ -1312,7 +1320,7 @@ const hawkDraw = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0, bank: 0, scale: 9, flap: 
 const ASH = new THREE.Color(PALETTE.ash);
 const slotColors = SLOTS.map((s) => new THREE.Color(s.hex));
 const focus = new THREE.Vector3();
-const LEAD_SCALE = 4.4;
+const LEAD_SCALE = 6.4;
 
 function addLeader(x, y, z, yaw, color, o = {}) {
   if (leaderList.length >= leaders.length) return;
@@ -1396,7 +1404,7 @@ function draw(dt) {
   else focus.copy(cam.look);
   const t = performance.now() / 1000;
   view.setLight(s, focus, t);
-  world.update(view.light, t, dt);
+  world.update(view.light, t, dt, view);
   birds.setLight(view.light, scene);
   // the birds: a moment of slow motion on a hawk strike
   const bdt = S.slowmo > 0 ? dt * 0.3 : dt;
@@ -1526,7 +1534,7 @@ window.addEventListener('resize', resize);
 async function boot() {
   // let the page paint its own title first: the world's build and the shaders' compile come after
   await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
-  setWorld('saltmere');
+  setWorld(TEST_MAP);
   resize();
   // a sky of our own flies behind the title until the room answers
   room = stubRoom('You');

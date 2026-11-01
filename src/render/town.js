@@ -1,16 +1,15 @@
 // The buildings of a place, built from the map's footprints into one merged geometry: plastered walls with windows, shutters
 // and doors (drawn by the surface shader), tiled gable and pyramid roofs with fascias and ridge caps, chimneys with caps,
 // balconies and flower boxes, flat roofs with parapets and rooftop clutter, barns of planks, a stone quay.
-// Returns the geometry and the places chimney smoke rises from.
+// Adds to builder B; returns the places chimney smoke rises from.
 
-import { Builder, SURF } from './worldmat.js';
+import { SURF } from './worldmat.js';
 import { makeRng } from '../sim/rng.js';
 
 const SHUTTERS = 5;
 const FLOWERS = ['#E8566A', '#F2A33A', '#D84A8C', '#F4E04A', '#E8E4F0', '#C83A3A'];
 
-export function buildTown(map) {
-  const B = new Builder();
+export function buildTown(map, B) {
   const smoke = [];
   const rng = makeRng(`${map.id}:town`);
   const L = map.look;
@@ -40,30 +39,30 @@ export function buildTown(map) {
       const v = (along ? b.d : b.w) * 0.12 * (rng.next() < 0.5 ? -1 : 1);
       const lu = along ? u : v;
       const lv = along ? v : u;
-      const cx = b.x + c * lu - s * lv;
-      const cz = b.z + s * lu + c * lv;
+      const cx = b.x + c * lu + s * lv;
+      const cz = b.z + s * lu - c * lv;
       const base = b.y + b.h;
       const ch = b.roofH + 1.3;
-      B.color(wallHex, 0.92).surf(SURF.wall, seed, [1, ch, 0, 0]);
+      B.color(wallHex, 0.92).surf(SURF.wall, seed, [1, ch, 0, 8]);
       B.box(cx, base, cz, 0.85, ch, 0.85, b.yaw);
       B.color('#6A5048').surf(SURF.plain);
       B.box(cx, base + ch, cz, 1.05, 0.22, 1.05, b.yaw);
       B.color('#3A2E2A');
       B.box(cx, base + ch + 0.22, cz, 0.5, 0.05, 0.5, b.yaw);
-      if (b.chimney) smoke.push([cx, base + ch + 0.4, cz]);
+      if (b.chimney && rng.next() < 0.4) smoke.push([cx, base + ch + 0.4, cz]);
     }
-    if (b.kind === 'house' && b.roof === 'gable') houseDressing(B, b, rng, wallHex);
+    if (b.kind === 'house' && b.roof === 'gable') houseDressing(B, b, rng);
   }
-  return { geometry: B.build(), smoke };
+  return { smoke };
 }
 
 const frame = (b) => {
   const c = Math.cos(b.yaw);
   const s = Math.sin(b.yaw);
-  return (u, v, yy) => [b.x + c * u - s * v, b.y + yy, b.z + s * u + c * v];
+  return (u, v, yy) => [b.x + c * u + s * v, b.y + yy, b.z + s * u - c * v];
 };
 
-/** Four walls (and the gable ends' triangles), plaster with windows; doors on the long sides of a house. */
+/** Four walls (and the gable ends' triangles), plaster with windows; a house's doors face the street (its v sides). */
 function walls(B, b, hex, seed, shutter) {
   const P = frame(b);
   const hw = b.w / 2;
@@ -72,20 +71,22 @@ function walls(B, b, hex, seed, shutter) {
   const corners = [P(-hw, -hd, 0), P(hw, -hd, 0), P(hw, hd, 0), P(-hw, hd, 0)];
   const lens = [b.w, b.d, b.w, b.d];
   const along = b.w >= b.d;
-  const wood = b.barn;
+  const style = b.barn ? 8 : b.kind === 'block' ? 5 : b.kind === 'church' ? 6 : b.kind === 'tower' ? 7 : shutter;
   for (let f = 0; f < 4; f++) {
     const a = corners[f];
     const c = corners[(f + 1) % 4];
     const len = lens[f];
-    const longSide = along ? f % 2 === 0 : f % 2 === 1;
-    const door = b.kind === 'house' && longSide ? 1 : b.kind === 'church' && !longSide && f === 3 ? 1 : 0;
-    B.color(hex).surf(wood ? SURF.wood : SURF.wall, seed + f * 0.13, [len, h, door, shutter]);
+    const street = f % 2 === 0;
+    const gableEnd = along ? !street : street;
+    const door = (b.kind === 'house' && street) || (b.kind === 'church' && !along && f === 0) || (b.kind === 'church' && along && f === 1) ? 1 : 0;
+    B.color(hex).surf(b.barn ? SURF.wood : SURF.wall, seed + f * 0.13, [len, h, door, style]);
     const at = [a[0], a[1] + h, a[2]];
     const ct = [c[0], c[1] + h, c[2]];
     B.quad(a, c, ct, at, [[0, 0], [len, 0], [len, h], [0, h]]);
-    // gable ends: the triangle up to the ridge, plain plaster (no windows above the top storey)
-    if (b.roof === 'gable' && !longSide) {
+    // gable ends: the triangle up to the ridge, plain (no windows above the top storey)
+    if (b.roof === 'gable' && gableEnd) {
       const apex = [(a[0] + c[0]) / 2, a[1] + h + b.roofH - 0.1, (a[2] + c[2]) / 2];
+      B.surf(b.barn ? SURF.wood : SURF.wall, seed + f * 0.13, [len, h, 0, 8]);
       B.tri(at, ct, apex, [0, h], [len, h], [len / 2, h + b.roofH]);
     }
   }
@@ -100,7 +101,7 @@ function gableRoof(B, b, hex, seed) {
   const c = Math.cos(yaw);
   const s = Math.sin(yaw);
   const base = b.y + b.h - 0.12;
-  const P = (u, v, yy) => [b.x + c * u - s * v, base + yy, b.z + s * u + c * v];
+  const P = (u, v, yy) => [b.x + c * u + s * v, base + yy, b.z + s * u - c * v];
   const H = b.roofH + 0.12;
   const e0 = P(-Lh, -Sh, 0);
   const e1 = P(Lh, -Sh, 0);
@@ -192,47 +193,48 @@ function flatRoof(B, b, wallHex, roofHex, seed, rng) {
   }
 }
 
-/** Flower boxes under some upper windows, a balcony on some long walls. */
-function houseDressing(B, b, rng, wallHex) {
+/** Flower boxes under some upper windows on the street sides, and now and then a balcony. */
+function houseDressing(B, b, rng) {
   const P = frame(b);
-  const along = b.w >= b.d;
-  const W = along ? b.w : b.d;
+  const W = b.w;
   const n = Math.max(1, Math.floor(W / 2.5));
   const sp = W / n;
-  const storeys = Math.floor((b.h - 0.55) / 2.9);
   for (const side of [-1, 1]) {
-    if (rng.next() < 0.35) continue;
-    const depth = (along ? b.d : b.w) / 2;
-    for (let level = 1; level < Math.max(2, storeys + 1); level++) {
-      if (level * 2.9 + 0.85 > b.h - 0.6) break;
+    if (rng.next() < 0.3) continue;
+    const out = side * (b.d / 2 + 0.2);
+    for (let level = 1; level * 2.9 + 2.1 < b.h - 0.55; level++) {
       for (let col = 0; col < n; col++) {
         if (rng.next() < 0.45) continue;
-        // the wall's own u runs from its first corner; on the far side it runs the other way
         const u0 = -W / 2 + (col + 0.5) * sp;
+        // the far wall's u runs the other way; mirror so the box sits under the shader's window
         const u = side < 0 ? u0 : -u0;
-        const y = level * 2.9 + 0.85 - 0.18;
-        const pt = along ? P(u, side * (depth + 0.18), y) : P(side * (depth + 0.18), -u, y);
+        const y = level * 2.9 + 0.85 - 0.42;
+        const pt = P(u, out, y);
         B.color('#7A5A44').surf(SURF.wood, rng.next());
-        B.box(pt[0], pt[1], pt[2], along ? 1.0 : 0.35, 0.28, along ? 0.35 : 1.0, 0);
+        B.box(pt[0], pt[1], pt[2], 1.0, 0.3, 0.38, b.yaw);
         B.color(FLOWERS[Math.floor(rng.next() * FLOWERS.length)]).surf(SURF.leaf, rng.next(), [0, 0, 0, 0]);
         for (let f = 0; f < 3; f++) {
-          const off = (f - 1) * 0.3;
-          B.blob(pt[0] + (along ? off : 0), pt[1] + 0.36, pt[2] + (along ? 0 : off), 0.2, 0.8, 0.2, 0.8);
+          const q = P(u + (f - 1) * 0.3, out, y + 0.42);
+          B.blob(q[0], q[1], q[2], 0.2, 0.8, 0.2, 0.8);
         }
       }
     }
-    // a balcony on a two-storey house, now and then
-    if (storeys >= 2 && rng.next() < 0.3) {
-      const u = (rng.next() - 0.5) * W * 0.3;
-      const y = 2.9;
-      const c = along ? P(u, side * (depth + 0.6), y) : P(side * (depth + 0.6), u, y);
+    // a balcony on a house of two storeys or more
+    if (b.h > 6.6 && rng.next() < 0.35) {
+      const col = Math.floor(rng.next() * n);
+      const u0 = -W / 2 + (col + 0.5) * sp;
+      const u = side < 0 ? u0 : -u0;
+      const y = 2.9 + 0.7;
+      const c = P(u, side * (b.d / 2 + 0.55), y);
       B.color('#D8CCBC').surf(SURF.stone, rng.next());
-      B.box(c[0], c[1], c[2], along ? 2.6 : 1.2, 0.18, along ? 1.2 : 2.6, 0);
+      B.box(c[0], c[1], c[2], 1.9, 0.16, 1.1, b.yaw);
       B.color('#2E2A30').surf(SURF.plain);
-      const rw = along ? 2.6 : 1.2;
-      const rd = along ? 1.2 : 2.6;
-      B.box(c[0], c[1] + 0.18, c[2] + (along ? side * 0.55 : 0) , along ? rw : 0.06, 0.8, along ? 0.06 : rd, 0);
-      void wallHex;
+      const r = P(u, side * (b.d / 2 + 1.05), y + 0.16);
+      B.box(r[0], r[1], r[2], 1.9, 0.75, 0.06, b.yaw);
+      for (const e of [-0.92, 0.92]) {
+        const q = P(u + e, side * (b.d / 2 + 0.6), y + 0.16);
+        B.box(q[0], q[1], q[2], 0.06, 0.75, 0.95, b.yaw);
+      }
     }
   }
 }
