@@ -1,6 +1,8 @@
 // One whole sky: flocks, wild birds, the hawk, the sunset clock and the rival flocks, stepped at a fixed rate.
 // The host's page runs it for the shared sky; a Migration runs it on the player's own page; node tests run thousands.
 // Players' lead birds are fed in from outside (`feed`); rivals fly here. Everything that happens is pushed to `events`.
+// Every other page keeps a mirror (`authority` false): the host's counts and wild birds are copied in, every leader is fed from
+// presence, and only the flocks' shapes are worked out here (to draw them). A mirror becomes the real thing with `takeOver`.
 
 import { FLOCK, GATHER, STEAL, PEEL, HAWK, ROUND, SKY, FLIGHT, PERSONALITIES, PERSONALITY_ORDER, SLOTS } from './config.js';
 import { getMap, forPerchesNear, dealPerches, wheelPos, surfaceAt } from './maps.js';
@@ -53,6 +55,7 @@ export class Sky {
     this.stepAcc = 0;
     this.ruleAcc = 0;
     this.storm = this.opts.twist === 'storm' ? { front: -330, depth: 80, speed: 4 } : null;
+    this.authority = opts.authority ?? true;
     this.reseed();
     this.deal();
     this.resetHawk();
@@ -157,7 +160,7 @@ export class Sky {
   }
 
   /** Rivals keep the sky at `rivalTarget` flocks: added any time, taken away only at dawn (or `now`). */
-  fillRivals(removeNow = false) {
+  fillRivals(removeNow = false, disperse = true) {
     if (!this.opts.autoRivals) return;
     const players = [...this.flocks.values()].filter((f) => f.kind === 'player').length;
     const rivals = [...this.flocks.values()].filter((f) => f.kind === 'rival');
@@ -166,7 +169,7 @@ export class Sky {
       for (let k = rivals.length; k < want; k++) this.addRival();
     } else if (removeNow && rivals.length > want) {
       const extra = rivals.sort((a, b) => a.n - b.n).slice(0, rivals.length - want);
-      for (const r of extra) this.removeFlock(r.id, true);
+      for (const r of extra) this.removeFlock(r.id, disperse);
     }
   }
 
@@ -186,10 +189,10 @@ export class Sky {
     for (const f of this.flocks.values()) if (f.brain) f.brain.skill = skill;
   }
 
-  /** A player's lead bird, where their page says it is (already validated). */
+  /** A lead bird where its page says it is (already validated). The real sky takes only players this way; a mirror takes all. */
   feed(id, x, y, z, yaw, boosting) {
     const f = this.flocks.get(id);
-    if (!f || f.kind !== 'player') return;
+    if (!f || (this.authority && f.kind !== 'player')) return;
     if (![x, y, z, yaw].every(Number.isFinite)) return;
     const L = f.leader;
     const last = f.lastFeed;
@@ -218,12 +221,37 @@ export class Sky {
     f.lastFeed = { t, x, z };
   }
 
-  /** Move a rival leader (a new host taking over from what it last drew). */
-  placeRival(id, x, y, z, yaw) {
-    const f = this.flocks.get(id);
-    if (!f || f.kind !== 'rival' || ![x, y, z, yaw].every(Number.isFinite)) return;
-    Object.assign(f.leader, { x, y, z, yaw });
-    f.trail.reset(this.clock, x, y, z);
+  /**
+   * This page becomes the host: rival flocks fly on from where this mirror last drew them (their paths kept, so their shapes
+   * don't jump), with fresh minds.
+   */
+  takeOver() {
+    if (this.authority) return;
+    this.authority = true;
+    const p0 = {};
+    const p1 = {};
+    for (const f of this.flocks.values()) {
+      f.lastFeed = null;
+      if (f.kind !== 'rival') continue;
+      f.trail.newest(p0);
+      f.trail.sample(p0.t - 0.2, p1);
+      const yaw = Math.hypot(p0.x - p1.x, p0.z - p1.z) > 0.2 ? Math.atan2(p0.z - p1.z, p0.x - p1.x) : f.leader.yaw;
+      const L = newLeader(p0.x, p0.z, Number.isFinite(yaw) ? yaw : 0, this.map);
+      L.y = p0.y;
+      f.leader = L;
+      f.brain = makeBrain(f.personality, this.skill);
+      f.lag = this.opts.judgeDelay;
+    }
+    this.pairs.clear();
+  }
+
+  /** This page stops being the host. */
+  becomeMirror() {
+    this.authority = false;
+    for (const f of this.flocks.values()) {
+      f.lag = 0;
+      f.lastFeed = null;
+    }
   }
 
   // ---------------------------------------------------------------- time
@@ -235,6 +263,15 @@ export class Sky {
       this.stepAcc -= STEP;
       this.fixedStep(STEP);
     }
+  }
+
+  /** A mirror: the host's clock, and the flocks' shapes for drawing. */
+  mirrorTo(clock, parked, phase) {
+    this.clock = clock;
+    this.parked = parked;
+    this.time = parked ? ROUND.parkedTime : clock;
+    this.phase = phase;
+    for (const id of this.order) this.shape(this.flocks.get(id));
   }
 
   /** Step until the clock reads `clock` (a big gap jumps instead). */
@@ -250,11 +287,16 @@ export class Sky {
   fixedStep(h) {
     this.clock += h;
     if (!this.parked) this.time = this.clock;
+    if (!this.authority) return;
     for (const id of this.order) {
       const f = this.flocks.get(id);
-      if (f.kind !== 'rival') continue;
-      const input = this.phase === 'night' ? this.roostInput(f) : rivalInput(this, f, this.rivalRng);
-      stepLeader(f.leader, input, h, this.map, null, f.n);
+      if (f.kind === 'rival') {
+        const input = this.phase === 'night' ? this.roostInput(f) : rivalInput(this, f, this.rivalRng);
+        stepLeader(f.leader, input, h, this.map, null, f.n);
+      } else if (f.away) {
+        // a player whose connection dropped: their flock circles where it was until they're back
+        stepLeader(f.leader, AWAY_INPUT, h, this.map, null, f.n);
+      } else continue;
       f.trail.push(this.clock, f.leader.x, f.leader.y, f.leader.z);
     }
     this.ruleAcc += h;
@@ -339,7 +381,7 @@ export class Sky {
         }
         f.n += take.length;
         f.stats.gathered += take.length;
-        this.events.push({ type: 'join', id, k: take.length, perches: take.slice() });
+        this.events.push({ type: 'join', id, k: take.length, perches: take.slice(), x: h.x, y: h.y, z: h.z });
       }
       for (let w = 0; w < this.wheels.length; w++) {
         const W = this.wheels[w];
@@ -355,7 +397,7 @@ export class Sky {
             W.n -= k;
             f.n += k;
             f.stats.gathered += k;
-            this.events.push({ type: 'join', id, k, wheel: w });
+            this.events.push({ type: 'join', id, k, wheel: w, x: p.x, y: p.y, z: p.z });
           }
         } else f.acc[key] = 0;
       }
@@ -397,7 +439,7 @@ export class Sky {
               c.n -= k;
               f.n += k;
               f.stats.gathered += k;
-              this.events.push({ type: 'join', id, k, cloud: c.id });
+              this.events.push({ type: 'join', id, k, cloud: c.id, x: p.x, y: p.y, z: p.z });
             }
           }
         }
@@ -713,6 +755,7 @@ export class Sky {
   }
 }
 
+const AWAY_INPUT = { turn: 0.45, climb: 0, boost: false };
 const tmpA = {};
 const tmpC = {};
 const bA = {};

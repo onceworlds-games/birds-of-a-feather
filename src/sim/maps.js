@@ -262,7 +262,34 @@ function finish(map, maxSlots, seed) {
 
   // perch slots: whole groups, picked so every kind is represented, up to maxSlots
   const rng = makeRng(`${seed}:perches`);
-  const groups = rng.shuffle(map.groupsRaw.filter((g) => g.pts.length >= 4 && g.pts.every((p) => p.every(Number.isFinite))));
+  // thermals inside the flying circle
+  for (const th of map.thermals) {
+    const dx = th.x - map.center.x;
+    const dz = th.z - map.center.z;
+    const d = Math.hypot(dx, dz);
+    if (d > 235) {
+      th.x = map.center.x + (dx / d) * 235;
+      th.z = map.center.z + (dz / d) * 235;
+    }
+  }
+  // grey wheels clear every roof and hill on their loop
+  for (const w of map.wheels) {
+    const base = sampleGrid(map.surface, w.cx, w.cz);
+    let clear = Infinity;
+    for (let k = 0; k < 64; k++) {
+      const a = (k / 64) * Math.PI * 2;
+      clear = Math.min(clear, base + w.h - 2 - sampleGrid(map.surface, w.cx + Math.cos(a) * w.rx, w.cz + Math.sin(a) * w.rz));
+    }
+    if (clear < 6) w.h += 6 - clear;
+  }
+  // only perches a bird can reach without fighting the edge's turn home, and none sunk into a slope
+  const reach = (p) => Math.hypot(p[0] - map.center.x, p[2] - map.center.z) < 262 && p[1] >= sampleGrid(map.ground, p[0], p[2]) - 0.3;
+  const groups = rng.shuffle(
+    map.groupsRaw
+      .filter((g) => g.pts.every((p) => p.every(Number.isFinite)))
+      .map((g) => ({ kind: g.kind, pts: g.pts.filter(reach) }))
+      .filter((g) => g.pts.length >= 4),
+  );
   const byKind = new Map();
   for (const g of groups) {
     if (!byKind.has(g.kind)) byKind.set(g.kind, []);

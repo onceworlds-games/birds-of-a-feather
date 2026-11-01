@@ -319,7 +319,7 @@ export function rivalInput(sky, f, rng) {
     diff = b.dodgeDir * 2;
     boost = L.stamina > 0.2;
     climb = -0.6;
-  } else if (b.goal.kind === 'flock') {
+  } else if (b.goal.kind === 'flock' || (b.goal.kind === 'wheel' && d < 60)) {
     const dy = point.y - L.y;
     if (Math.abs(dy) > 3) climb = clamp(dy / 8, -1, 1);
   }
