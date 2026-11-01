@@ -906,7 +906,18 @@ function runStats(end) {
     maxN: S.sunset.maxN,
     sunsets: end ? 1 : 0,
     thermal: tricks.counts.thermal,
+    tailwinds: tricks.counts.tailwind,
   };
+}
+
+/** The week's goals as the Today screen shows them. */
+function weekView() {
+  const wk = G.weekNumber(today());
+  const w = profile.weekly.week === wk ? profile.weekly : null;
+  return G.weeklyFor(wk).map((g, i) => {
+    const v = w ? w.progress[i] : 0;
+    return { text: g.text, target: g.target, value: Math.min(v, g.target), done: w?.done[i] ?? false };
+  });
 }
 
 /** While flying: a goal reached mid-sunset is called out then (it's counted at sundown). */
@@ -1004,14 +1015,16 @@ function roostAssign(standings, mine) {
  * A run ended: its song (tally), the level it brings, the day's goals, the streak; saved. Returns the report the night (or
  * a result screen) shows: { lines, total, before, after, unlocks }.
  */
-function settle(rank, n, flocks) {
+function settle(rank, n, flocks, { dailyFirst = false } = {}) {
   const day = today();
   const before = profile.xp;
   const firstToday = profile.daily.day !== day || profile.daily.played === 0;
-  const goals = G.applyGoals(profile.daily, day, runStats({ rank, flocks, n }));
+  const stats = runStats({ rank, flocks, n });
+  const goals = G.applyGoals(profile.daily, day, stats);
+  const weekly = G.applyWeekly(profile.weekly, G.weekNumber(day), { ...stats, goalsDone: goals, dailyDays: dailyFirst ? 1 : 0 });
   profile.daily.played++;
   const grew = G.bumpStreak(profile.streak, day);
-  const t = G.tally({ n, rank, flocks, trickSong: tricks.song, rares: tricks.rares, goals, firstToday, streak: grew ? profile.streak.count : 0 });
+  const t = G.tally({ n, rank, flocks, trickSong: tricks.song, rares: tricks.rares, goals, weekly, firstToday, streak: grew ? profile.streak.count : 0 });
   profile.xp = Math.min(1e8, profile.xp + t.total);
   for (const [k, v] of Object.entries(tricks.counts)) if (v > 0) profile.tricks[k] = (profile.tricks[k] ?? 0) + v;
   const L0 = G.levelOf(before).level;
@@ -1368,7 +1381,7 @@ async function showDailyResult() {
   const { rank, n, flocks } = soloStanding(M.sky);
   const firstRun = profile.daily.day !== day || !profile.daily.flew;
   const before = profile.daily.day === day ? profile.daily.best : 0;
-  const report = settle(rank, n, flocks); // starts the day over if it's a new one
+  const report = settle(rank, n, flocks, { dailyFirst: firstRun }); // starts the day over if it's a new one
   const newBest = n > before;
   if (newBest) profile.daily.best = n;
   profile.daily.flew = true;
@@ -1432,6 +1445,7 @@ async function openToday(back) {
     screens.today({
       streak: profile.streak.day >= day - 1 ? profile.streak.count : 0,
       goals: goalView(false),
+      week: weekView(),
       daily: { place: PLACE_NAMES[spec.mapId], rivals: spec.rivals, skill: spec.skill, twist: spec.twist, best: profile.daily.day === day ? profile.daily.best : 0, board, flown, canFly: S.alone },
       onDaily: startDaily,
       onBack: closeMenu,
@@ -1779,7 +1793,8 @@ function buildHud(sky) {
 const leaders = Array.from({ length: 120 }, () => ({ x: 0, y: 0, z: 0, yaw: 0, pitch: 0, bank: 0, color: new THREE.Color(), scale: 4.4, flap: 11, phase: 0, species: 0, flair: 0 }));
 const leaderList = [];
 const hawkAt = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0, bank: 0, folded: false, visible: false };
-const hawkDraw = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0, bank: 0, scale: 9, flap: 7, fold: 0, phase: 0 };
+// the hawk's edge: a dull ember, not a flock's bright colour
+const hawkDraw = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0, bank: 0, scale: 9, flap: 7, fold: 0, phase: 0, color: new THREE.Color(0.22, 0.07, 0.03) };
 const ASH = new THREE.Color(PALETTE.ash);
 const slotColors = SLOTS.map((s) => new THREE.Color(s.hex));
 const focus = new THREE.Vector3();
@@ -1850,7 +1865,7 @@ function drawLeaders(sky) {
   if ((H.phase === 'circle' || H.phase === 'stoop') && H.target === id && me.L) fx.setAim(me.puffs[0], me.puffs[0].r || 3);
   else fx.setAim(null);
   // the title's wire birds
-  if (!S.mig && (S.mode === 'title' || S.mode === 'takeoff' || S.mode === 'boot' || (S.mode === 'closed' && !me.L))) {
+  if (!S.mig && (S.mode === 'title' || S.mode === 'takeoff' || S.mode === 'boot' || S.mode === 'today' || S.mode === 'aviary' || (S.mode === 'closed' && !me.L))) {
     // starlings on the wire, and in the middle the bird the player leads with (no flock's edge: nobody leads yet)
     TITLE_BIRDS.forEach((b, k) => {
       if (b.flying && b.t > 2) return;

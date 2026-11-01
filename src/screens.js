@@ -414,7 +414,7 @@ export class Screens {
   /**
    * Today: the streak, the day's three goals, and the Daily Sunset (its place, the board, the player's best; flown alone).
    */
-  today({ streak, goals, daily, onDaily, onBack }) {
+  today({ streak, goals, week, daily, onDaily, onBack }) {
     this.clear();
     const box = el('div', 'today-box');
     box.appendChild(el('h2', 'route-title', 'Today'));
@@ -428,6 +428,12 @@ export class Screens {
     const gl = el('div', 'goals-full');
     for (const g of goals) gl.appendChild(goalLine(g));
     left.appendChild(gl);
+    if (week?.length) {
+      left.appendChild(el('div', 'goals-head', 'This week'));
+      const wl = el('div', 'goals-full week');
+      for (const g of week) wl.appendChild(goalLine(g));
+      left.appendChild(wl);
+    }
     cols.appendChild(left);
     const right = el('div', 'today-col daily-col');
     right.appendChild(el('div', 'intro-n', 'Daily Sunset'));

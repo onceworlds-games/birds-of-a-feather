@@ -10,8 +10,10 @@ import { Hud, symbolPath } from './hud.js';
 import { Sky } from './sim/sky.js';
 import { SLOTS, PALETTE } from './sim/config.js';
 import { surfaceAt, wirePoint } from './sim/maps.js';
+import { SPECIES } from './sim/species.js';
 
 const DT = 1 / 30;
+const HAWK_EDGE = new THREE.Color(0.22, 0.07, 0.03);
 
 function arcAt(yaw0, speed, turn, t, out) {
   if (Math.abs(turn) < 1e-6) {
@@ -52,7 +54,7 @@ function setup(W, H) {
 }
 
 /** Fly the flocks along their paths for T seconds (the rules running, the birds following), then draw one frame. */
-function stage(ctx, { mapId = 'saltmere', flocks, T, s, cam, look, fov = 50, steal = false, after }) {
+function stage(ctx, { mapId = 'saltmere', flocks, T, s, cam, look, fov = 50, steal = false, after, leadScale = 4 }) {
   const { view, birds, fx } = ctx;
   const sky = new Sky({ mapId, seed: 11, autoRivals: false, hawkFirst: 9999, wild: 1000 });
   const world = buildWorld(sky.map, 'high');
@@ -88,8 +90,8 @@ function stage(ctx, { mapId = 'saltmere', flocks, T, s, cam, look, fov = 50, ste
     const p = fl.path(T);
     const f = sky.flocks.get(fl.id);
     const color = new THREE.Color(SLOTS[fl.slot].hex);
-    lead.push({ x: p.x, y: p.y, z: p.z, yaw: p.yaw, color, scale: 2.4, flap: 11, phase: lead.length });
-    fx.addRibbons(f.trail, sky.clock, { x: p.x, y: p.y, z: p.z, yaw: p.yaw }, color);
+    lead.push({ x: p.x, y: p.y, z: p.z, yaw: p.yaw, color, scale: leadScale, flap: 11, phase: lead.length, species: fl.species ?? 0, flair: fl.flair ?? 0 });
+    fx.addRibbons(f.trail, sky.clock, { x: p.x, y: p.y, z: p.z, yaw: p.yaw }, color, fl.trail ?? 0, leadScale);
   }
   fx.endRibbons();
   return { sky, world, lead };
@@ -172,9 +174,9 @@ const POSTERS = {
     const { world, lead } = stage(ctx, {
       flocks,
       T,
-      cam: [H.x - 10, H.y - 6, H.z + 22],
-      look: [H.x - 9, H.y + 3, H.z],
-      fov: 60,
+      cam: [H.x - 12, H.y + 12, H.z + 26],
+      look: [H.x - 2, H.y - 2, H.z],
+      fov: 55,
       after: (sky) => {
         const f = sky.flocks.get('pa');
         const head = f.puffs[1];
@@ -187,8 +189,8 @@ const POSTERS = {
         ctx.fx.update(0.25, { glow: 0 }, ctx.view.scene);
       },
     });
-    // the hawk, wings flung wide, just through the flock
-    lead.push({ x: aim.x + 1, y: aim.y + 2, z: aim.z + 3, yaw: 2.2, pitch: -0.45, bank: 0.35, color: new THREE.Color(PALETTE.hawk), scale: 9, flap: 0.0001, phase: 0.35 });
+    // the hawk, wings half folded, stooping through the flock
+    ctx.birds.setHawk({ x: aim.x - 2, y: aim.y + 4.5, z: aim.z + 5, yaw: -0.9, pitch: -0.75, bank: 0.25, scale: 9, flap: 0, fold: 0.55, phase: 0.35, color: HAWK_EDGE });
     ctx.birds.setLeaders(lead);
     light(ctx, world, 0.5, new THREE.Vector3(aim.x, aim.y, aim.z));
     ctx.view.render();
@@ -251,32 +253,72 @@ const POSTERS = {
     ctx.hud.draw(0, { labels, layout: { hintY: 0 }, why: false });
   },
 
-  // six flocks over the town
+  // the game as it plays: the high camera over the town, my flock cutting the tail of a bigger one, a rare bird in its light,
+  // the counts, the chorus and the callouts
   multi(ctx) {
-    const T = 4;
-    const cam = new THREE.Vector3(24, 66, -35);
-    const d = new THREE.Vector3(-0.743, 0, 0.669);
-    const right = new THREE.Vector3(-d.z, 0, d.x);
-    // [slot, birds, depth, across, heading, turn, height]
-    const spec = [
-      [1, 260, 28, 13, -2.3, 0.14, 52],
-      [0, 380, 46, -15, 0.8, -0.12, 60],
-      [2, 190, 64, 24, 0.9, 0.16, 63],
-      [3, 140, 80, -44, -2.2, 0.2, 55],
-      [4, 90, 105, 22, 2.6, -0.2, 74],
-      [5, 60, 60, -46, 1.6, 0.18, 70],
+    const T = 4.2;
+    const map = ctx.sky0;
+    const b = Number.isFinite(map.look.bearing) ? map.look.bearing : Math.PI + 0.32 + Math.PI / 4;
+    const fwd = new THREE.Vector3(Math.cos(b), 0, Math.sin(b));
+    const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
+    const C = { x: 4, z: -2 };
+    const at = (u, v) => ({ x: C.x + fwd.x * u + right.x * v, z: C.z + fwd.z * u + right.z * v });
+    const yawOf = (du, dv) => Math.atan2(fwd.z * du + right.z * dv, fwd.x * du + right.x * dv);
+    const me = at(-2, -6);
+    const rival = at(10, 6);
+    const third = at(30, -34);
+    const flocks = [
+      { id: 'pme', slot: 0, n: 296, species: 4, trail: 4, path: flight({ x: me.x, z: me.z, yaw: yawOf(1, 0.5), T, turn: -0.1, y: 47 }) },
+      { id: 'pr', slot: 1, n: 352, name: 'Gull', path: flight({ x: rival.x, z: rival.z, yaw: yawOf(-0.15, 1), T, turn: 0.12, y: 50 }) },
+      { id: 'p3', slot: 2, n: 118, name: 'Swift', path: flight({ x: third.x, z: third.z, yaw: yawOf(0.6, -1), T, turn: 0.2, y: 45 }) },
     ];
-    const flocks = spec.map(([slot, n, depth, across, yaw, turn, y], k) => {
-      const x = cam.x + d.x * depth + right.x * across;
-      const z = cam.z + d.z * depth + right.z * across;
-      return { id: `p${k}`, slot, n, path: flight({ x, z, yaw, T, turn, y }) };
-    });
-    const look = cam.clone().addScaledVector(d, 50).setY(54);
-    const { sky, world, lead } = stage(ctx, { flocks, T, cam: cam.toArray(), look: look.toArray(), fov: 55 });
+    const head = flocks[0].path(T);
+    const D = 50 + 1.75 * Math.sqrt(296);
+    const pitch = (54 * Math.PI) / 180;
+    const look = new THREE.Vector3(head.x + fwd.x * 10 + right.x * 6, head.y - 3, head.z + fwd.z * 10 + right.z * 6);
+    const cam = look.clone().addScaledVector(fwd, -Math.cos(pitch) * D).setY(look.y + Math.sin(pitch) * D);
+    const { sky, world, lead } = stage(ctx, { flocks, T, steal: true, cam: cam.toArray(), look: look.toArray(), fov: 44, leadScale: 7.2 });
+    // a rare bird on the nearest landmark, in its column of light
+    const v = new THREE.Vector3();
+    let rare = null;
+    let best = Infinity;
+    for (const r of sky.rares ?? []) {
+      v.set(r.x, r.y, r.z).project(ctx.view.camera);
+      const d = Math.hypot(v.x - 0.45, v.y + 0.4);
+      if (v.z < 1 && Math.abs(v.x) < 0.85 && Math.abs(v.y) < 0.8 && d < best) {
+        best = d;
+        rare = r;
+      }
+    }
+    if (rare) {
+      lead.push({ x: rare.x, y: rare.y + 0.3, z: rare.z, yaw: 2.4, color: new THREE.Color('#FFB547'), scale: 4.6, flap: -1, phase: 1, species: rare.species, flair: 0 });
+      ctx.fx.setRares([{ x: rare.x, y: rare.y, z: rare.z, color: PALETTE.gold }]);
+    }
     ctx.birds.setLeaders(lead);
-    light(ctx, world, 0.4, look);
+    light(ctx, world, 0.38, look);
     ctx.view.render();
-    tagsFor(ctx, sky, flocks, { size: 40 });
+    // the HUD: counts, my chorus, two callouts, the board and the sun clock
+    const mine = sky.flocks.get('pme');
+    const tags = [];
+    for (const fl of flocks) {
+      const f = sky.flocks.get(fl.id);
+      const h = fl.id === 'pme' ? head : f.puffs[0];
+      v.set(h.x, h.y + (fl.id === 'pme' ? 5.2 : (f.puffs[0].r || 2) + 2), h.z).project(ctx.view.camera);
+      tags.push({ x: (v.x * 0.5 + 0.5) * ctx.W, y: (-v.y * 0.5 + 0.5) * ctx.H - (fl.id === 'pme' ? 12 : 0), n: f.n, slot: fl.slot, size: fl.id === 'pme' ? 48 : 38, alpha: 1, kind: fl.id === 'pme' ? 'me' : f.n > mine.n * 1.15 ? 'danger' : 'prey', name: fl.id === 'pme' ? '' : fl.name, me: fl.id === 'pme' });
+    }
+    const rares = [];
+    if (rare) {
+      v.set(rare.x, rare.y + 2.5, rare.z).project(ctx.view.camera);
+      rares.push({ x: (v.x * 0.5 + 0.5) * ctx.W, y: (-v.y * 0.5 + 0.5) * ctx.H, name: SPECIES[rare.species].name, color: PALETTE.gold, alpha: 1 });
+    }
+    ctx.hud.addCallout({ title: 'Chorus ×4', song: 24, color: PALETTE.gold, size: 34 });
+    ctx.hud.addCallout({ title: 'Tail cut', song: 50, color: PALETTE.cream, size: 38 });
+    const standings = [...sky.flocks.values()].sort((a, c) => c.n - a.n);
+    const names = { pme: 'You', pr: 'Gull', p3: 'Swift' };
+    const board = standings.map((f, k) => ({ place: k + 1, slot: f.slot, name: names[f.id], n: f.n, me: f.id === 'pme' }));
+    board.push({ place: 4, slot: 3, name: 'Plover', n: 64, me: false }, { place: 5, slot: 4, name: 'Shrike', n: 41, me: false });
+    const layout = { clockX: ctx.W / 2, top: 10, boardW: 240, right: ctx.W - 14, boardTop: 8, rows: 5, hintY: 0 };
+    ctx.hud.draw(0.32, { tags, rares, chorus: { chain: 4, left: 0.8 }, board, clock: { share: 0.38, left: 112, sunColor: '#FFD79A', label: '' }, layout, why: false });
   },
 
   // one flock curling behind its lead bird against the sun's disc
@@ -438,6 +480,154 @@ const BADGES = {
   }],
 };
 
+Object.assign(BADGES, {
+  // six gathers, one after another: birds rising like a run of notes
+  'full-chorus': [SLOTS[8].hex, (g) => {
+    g.strokeStyle = PALETTE.cream;
+    g.lineWidth = 5;
+    g.lineCap = 'round';
+    g.setLineDash([2, 11]);
+    g.beginPath();
+    g.moveTo(-86, 58);
+    g.quadraticCurveTo(-10, 40, 74, -62);
+    g.stroke();
+    g.setLineDash([]);
+    for (let k = 0; k < 6; k++) {
+      const u = k / 5;
+      BIRD(g, -84 + u * 156, 46 - u * 104 - Math.sin(u * Math.PI) * 14, 13 + k * 2.4, k === 5 ? PALETTE.gold : PALETTE.cream);
+    }
+  }],
+  // a bird on its landmark, in its own column of light
+  'rare-bird': [PALETTE.teal, (g) => {
+    const beam = g.createLinearGradient(0, -110, 0, 60);
+    beam.addColorStop(0, 'rgba(255,241,220,0)');
+    beam.addColorStop(1, 'rgba(255,241,220,0.55)');
+    g.fillStyle = beam;
+    g.beginPath();
+    g.moveTo(-26, 60);
+    g.lineTo(-44, -110);
+    g.lineTo(44, -110);
+    g.lineTo(26, 60);
+    g.fill();
+    g.fillStyle = PALETTE.ink;
+    g.beginPath();
+    g.moveTo(-58, 96);
+    g.lineTo(-34, 54);
+    g.lineTo(30, 50);
+    g.lineTo(60, 96);
+    g.fill();
+    perched(g, 0, 52, 1.6, PALETTE.gold);
+    star(g, 46, -48, 16, PALETTE.cream);
+    star(g, -50, -18, 9, PALETTE.cream);
+  }],
+  // wings flung wide in gold against a burst of rays
+  legendary: [SLOTS[4].hex, (g) => {
+    g.fillStyle = 'rgba(255,241,220,0.32)';
+    for (let k = 0; k < 12; k++) {
+      const a = (k / 12) * Math.PI * 2;
+      g.beginPath();
+      g.moveTo(0, 4);
+      g.lineTo(Math.cos(a - 0.12) * 130, 4 + Math.sin(a - 0.12) * 130);
+      g.lineTo(Math.cos(a + 0.12) * 130, 4 + Math.sin(a + 0.12) * 130);
+      g.fill();
+    }
+    g.save();
+    g.lineWidth = 0.16;
+    g.lineJoin = 'round';
+    g.translate(0, 16);
+    g.scale(80, 80);
+    g.beginPath();
+    g.moveTo(-1, -0.15);
+    g.quadraticCurveTo(-0.5, -0.65, 0, 0.05);
+    g.quadraticCurveTo(0.5, -0.65, 1, -0.15);
+    g.quadraticCurveTo(0.5, -0.35, 0, 0.3);
+    g.quadraticCurveTo(-0.5, -0.35, -1, -0.15);
+    g.strokeStyle = PALETTE.ink;
+    g.stroke();
+    g.fillStyle = PALETTE.gold;
+    g.fill();
+    g.restore();
+  }],
+  // a full perch: twelve birds in rows, each its own colour
+  'aviary-12': [PALETTE.terracotta, (g) => {
+    const cols = [PALETTE.cream, PALETTE.gold, SLOTS[5].hex, SLOTS[2].hex];
+    for (let r = 0; r < 3; r++) {
+      g.strokeStyle = PALETTE.ink;
+      g.lineWidth = 5;
+      g.beginPath();
+      g.moveTo(-96, -36 + r * 52);
+      g.lineTo(96, -36 + r * 52);
+      g.stroke();
+      for (let c = 0; c < 4; c++) perched(g, -63 + c * 42, -36 + r * 52, 0.95, cols[(r + c) % 4]);
+    }
+  }],
+  // ten, over a full bar
+  'level-ten': [SLOTS[0].hex, (g) => {
+    g.font = '900 150px "Big Shoulders Display", sans-serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.lineJoin = 'round';
+    g.lineWidth = 16;
+    g.strokeStyle = PALETTE.ink;
+    g.strokeText('10', 0, -14);
+    g.fillStyle = PALETTE.cream;
+    g.fillText('10', 0, -14);
+    g.fillStyle = PALETTE.ink;
+    g.fillRect(-76, 56, 152, 24);
+    g.fillStyle = PALETTE.gold;
+    g.fillRect(-70, 61, 140, 14);
+  }],
+  // seven suns in a row, a day each
+  'seven-days': [PALETTE.rose, (g) => {
+    g.fillStyle = PALETTE.ink;
+    g.fillRect(-120, 40, 240, 80);
+    for (let k = 0; k < 7; k++) {
+      const a = Math.PI * (0.92 - (k / 6) * 0.84);
+      const x = Math.cos(a) * 84;
+      const y = 40 - Math.sin(a) * 84;
+      g.beginPath();
+      g.arc(x, y, 11 + (k === 6 ? 6 : 0), 0, Math.PI * 2);
+      g.fillStyle = PALETTE.gold;
+      g.fill();
+      g.lineWidth = 4;
+      g.strokeStyle = PALETTE.ink;
+      g.stroke();
+    }
+    BIRD(g, 0, -6, 18, PALETTE.cream);
+  }],
+  // the sun half down, the same one for everyone
+  'daily-sunset': [PALETTE.ember, (g) => {
+    g.save();
+    g.beginPath();
+    g.rect(-130, -130, 260, 150);
+    g.clip();
+    g.beginPath();
+    g.arc(0, 20, 66, 0, Math.PI * 2);
+    g.fillStyle = PALETTE.gold;
+    g.fill();
+    g.fillStyle = PALETTE.ember;
+    for (let k = 0; k < 4; k++) g.fillRect(-80, 20 - 12 - k * 15, 160, 4 + k * 0.5);
+    g.restore();
+    g.fillStyle = PALETTE.ink;
+    g.fillRect(-130, 20, 260, 110);
+    BIRD(g, -46, -70, 16, PALETTE.ink);
+    BIRD(g, -12, -86, 12, PALETTE.ink);
+    BIRD(g, 22, -66, 14, PALETTE.ink);
+  }],
+});
+
+function star(g, x, y, r, color) {
+  g.fillStyle = color;
+  g.beginPath();
+  for (let k = 0; k < 8; k++) {
+    const a = (k / 8) * Math.PI * 2 - Math.PI / 2;
+    const rr = k % 2 ? r * 0.32 : r;
+    g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+  }
+  g.closePath();
+  g.fill();
+}
+
 function wireLine(g) {
   g.strokeStyle = PALETTE.ink;
   g.lineWidth = 6;
@@ -447,8 +637,12 @@ function wireLine(g) {
   g.stroke();
 }
 
-function perched(g, x, y) {
-  g.fillStyle = PALETTE.ink;
+function perched(g, x, y, k = 1, color = PALETTE.ink) {
+  g.save();
+  g.translate(x, y);
+  g.scale(k, k);
+  g.translate(-x, -y);
+  g.fillStyle = color;
   g.beginPath();
   g.ellipse(x, y - 14, 10, 14, 0, 0, Math.PI * 2);
   g.fill();
@@ -465,6 +659,21 @@ function perched(g, x, y) {
   g.lineTo(x - 14, y + 8);
   g.lineTo(x - 2, y - 2);
   g.fill();
+  if (color !== PALETTE.ink) {
+    g.lineWidth = 2.5 / k;
+    g.strokeStyle = PALETTE.ink;
+    g.beginPath();
+    g.ellipse(x, y - 14, 10, 14, 0, 0, Math.PI * 2);
+    g.stroke();
+    g.beginPath();
+    g.arc(x + 3, y - 30, 7, 0, Math.PI * 2);
+    g.stroke();
+    g.fillStyle = PALETTE.ink;
+    g.beginPath();
+    g.arc(x + 5, y - 31, 1.6, 0, Math.PI * 2);
+    g.fill();
+  }
+  g.restore();
 }
 
 function hawk(g, x, y, s) {
@@ -538,6 +747,9 @@ function drawBadge(id, W, H) {
 }
 
 export async function renderPoster(name) {
+  // the same picture every time: the effects' randomness from a fixed seed
+  let seed = 20261101;
+  Math.random = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
   const W = window.innerWidth;
   const H = window.innerHeight;
   document.getElementById('boot')?.remove();

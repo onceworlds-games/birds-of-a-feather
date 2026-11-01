@@ -198,3 +198,34 @@ test('song for tricks is what the table says', () => {
   T.slingshot();
   assert.equal(T.song, SONG.thermal + SONG.slingshot);
 });
+
+test('the week: three bigger goals, the same for everyone, adding up over the week, starting over on Monday', () => {
+  // 20400 is a Monday? weeks turn on Mondays: the day before a turn and the turn are in different weeks
+  let turn = 20400;
+  while (G.weekNumber(turn) === G.weekNumber(turn - 1)) turn++;
+  assert.equal(new Date(turn * G.DAY_MS).getUTCDay(), 1, 'a week starts on a Monday');
+  assert.equal(G.weekNumber(turn + 6), G.weekNumber(turn));
+  assert.equal(G.weekNumber(turn + 7), G.weekNumber(turn) + 1);
+  const wk = G.weekNumber(turn);
+  const goals = G.weeklyFor(wk);
+  assert.deepEqual(goals, G.weeklyFor(wk));
+  assert.equal(goals.length, 3);
+  assert.equal(new Set(goals.map((g) => g.id)).size, 3);
+  const weekly = G.PROFILE0().weekly;
+  const third = {};
+  for (const g of goals) third[g.stat] = Math.ceil(g.target / 3);
+  assert.equal(G.applyWeekly(weekly, wk, third), 0);
+  assert.equal(G.applyWeekly(weekly, wk, third), 0);
+  assert.equal(G.applyWeekly(weekly, wk, third), 3, 'three sunsets of a third each finish all three');
+  assert.equal(G.applyWeekly(weekly, wk, third), 0, 'once');
+  G.applyWeekly(weekly, wk + 1, {});
+  assert.deepEqual(weekly.done, [false, false, false]);
+  // a week's goals are worth more than a day's, and they show in the tally
+  assert.ok(G.WEEK_SONG > G.GOAL_SONG);
+  const t = G.tally({ n: 10, rank: 4, flocks: 6, trickSong: 0, weekly: 2 });
+  assert.equal(t.lines.find((l) => l.key === 'week').song, 2 * G.WEEK_SONG);
+  // saved weeks are checked
+  const p = G.cleanProfile({ weekly: { week: wk, progress: [3, -1, 'x'], done: [true, 'yes', false] } });
+  assert.deepEqual(p.weekly, { week: wk, progress: [3, 0, 0], done: [true, false, false] });
+  assert.equal(G.cleanProfile({ weekly: { week: 1.5 } }).weekly.week, -1);
+});

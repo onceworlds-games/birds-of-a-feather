@@ -1,5 +1,6 @@
 // Progress that lasts: song (points) tallied after every sunset into levels 1-40 that unlock trails and flock flair; the
-// Aviary of caught species; the Daily Sunset, its three goals and the day streak; the saved profile and its checks.
+// Aviary of caught species; the Daily Sunset, its three goals, the week's three bigger goals and the day streak; the saved
+// profile and its checks.
 // Pure: no page, no clock of its own (days come in as numbers).
 
 import { SPECIES, CATCH_SONG } from './species.js';
@@ -75,13 +76,14 @@ export const flairOpen = (id, level) => FLAIRS.some((f) => f.id === id && f.leve
 
 export const PLACE_SONG = [150, 90, 50];
 export const GOAL_SONG = 150;
+export const WEEK_SONG = 500;
 export const FIRST_TODAY = 100;
 export const streakSong = (count) => 25 * Math.min(Math.max(count, 0), 8);
 
 /**
  * The song of a sunset, line by line: { lines: [{ key, label, song }], total }.
- * r: { n (flock at sundown), rank (0 first), flocks, trickSong (gathers, steals and tricks), rares: [species], goals (newly
- * done), firstToday, streak (the count if it grew today, else 0) }.
+ * r: { n (flock at sundown), rank (0 first), flocks, trickSong (gathers, steals and tricks), rares: [species], goals (daily
+ * goals newly done), weekly (weekly goals newly done), firstToday, streak (the count if it grew today, else 0) }.
  */
 export function tally(r) {
   const lines = [];
@@ -93,6 +95,7 @@ export function tally(r) {
   add('tricks', 'Gathers, steals and tricks', r.trickSong);
   for (const sp of r.rares ?? []) if (SPECIES[sp]) add('rare', SPECIES[sp].name, CATCH_SONG[SPECIES[sp].rarity]);
   if (r.goals) add('goals', r.goals === 1 ? 'Daily goal' : `${r.goals} daily goals`, GOAL_SONG * r.goals);
+  if (r.weekly) add('week', r.weekly === 1 ? 'Weekly goal' : `${r.weekly} weekly goals`, WEEK_SONG * r.weekly);
   if (r.firstToday) add('today', 'First sunset today', FIRST_TODAY);
   if (r.streak > 1) add('streak', `${r.streak} days running`, streakSong(r.streak));
   return { lines, total: lines.reduce((a, l) => a + l.song, 0) };
@@ -168,6 +171,49 @@ export function applyGoals(daily, day, stats) {
   return finished;
 }
 
+/** Weeks start on Monday (UTC); day 0 (1 January 1970) was a Thursday. */
+export const weekNumber = (day) => Math.floor((day + 3) / 7);
+
+/** The week's pool: bigger goals that add up over every sunset that week. */
+export const WEEKLY = [
+  { id: 'w-sunsets', text: (k) => `Fly ${k} sunsets`, stat: 'sunsets', amounts: [12, 16, 20] },
+  { id: 'w-gather', text: (k) => `Gather ${k} birds`, stat: 'gathered', amounts: [2500, 3500, 5000] },
+  { id: 'w-steal', text: (k) => `Steal ${k} birds`, stat: 'stolen', amounts: [500, 800, 1200] },
+  { id: 'w-rare', text: (k) => `Catch ${k} rare birds`, stat: 'rares', amounts: [4, 6, 8] },
+  { id: 'w-top3', text: (k) => `Finish in the top three ${k} times`, stat: 'top3', amounts: [5, 8] },
+  { id: 'w-tailcut', text: (k) => `Cut ${k} tails`, stat: 'tailCut', amounts: [8, 12] },
+  { id: 'w-daily', text: (k) => `Fly the Daily Sunset on ${k} days`, stat: 'dailyDays', amounts: [3, 4, 5] },
+  { id: 'w-goals', text: (k) => `Finish ${k} daily goals`, stat: 'goalsDone', amounts: [8, 10, 12] },
+  { id: 'w-chorus', text: (k) => `Sing ${k} Choruses of five`, stat: 'tailwinds', amounts: [6, 10] },
+];
+
+/** A week's three goals: [{ id, text, stat, mode: 'sum', target }], the same for everyone. */
+export function weeklyFor(week) {
+  const rng = makeRng(`week:${week}`);
+  return rng.shuffle(WEEKLY).slice(0, 3).map((g) => {
+    const target = rng.pick(g.amounts);
+    return { id: g.id, text: g.text(target), stat: g.stat, mode: 'sum', target };
+  });
+}
+
+/** Add a sunset's stats to the week's goals (the profile's { week, progress, done }); returns how many it finished. */
+export function applyWeekly(weekly, week, stats) {
+  if (weekly.week !== week) {
+    weekly.week = week;
+    weekly.progress = [0, 0, 0];
+    weekly.done = [false, false, false];
+  }
+  let finished = 0;
+  weeklyFor(week).forEach((g, i) => {
+    weekly.progress[i] += Math.max(0, stats[g.stat] ?? 0);
+    if (!weekly.done[i] && weekly.progress[i] >= g.target) {
+      weekly.done[i] = true;
+      finished++;
+    }
+  });
+  return finished;
+}
+
 /** The streak after playing on `day`: one more if yesterday was played, back to 1 after a gap. Returns true if it grew. */
 export function bumpStreak(streak, day) {
   if (streak.day === day) return false;
@@ -195,6 +241,7 @@ export const PROFILE0 = () => ({
   equip: { species: 'starling', trail: 0, flair: 0 },
   streak: { day: -1, count: 0, best: 0 },
   daily: { day: -1, progress: [0, 0, 0], done: [false, false, false], best: 0, played: 0, flew: false }, // best, flew: the Daily Sunset
+  weekly: { week: -1, progress: [0, 0, 0], done: [false, false, false] },
   tricks: {},
 });
 
@@ -228,6 +275,12 @@ export function cleanProfile(p) {
     best: count(d.best, 5000),
     played: count(d.played, 1000),
     flew: d.flew === true,
+  };
+  const w = p.weekly ?? {};
+  o.weekly = {
+    week: Number.isInteger(w.week) && w.week >= -1 && w.week < 1e6 ? w.week : -1,
+    progress: [0, 1, 2].map((i) => count(Array.isArray(w.progress) ? w.progress[i] : 0)),
+    done: [0, 1, 2].map((i) => Array.isArray(w.done) && w.done[i] === true),
   };
   if (p.tricks && typeof p.tricks === 'object') for (const [k, v] of Object.entries(p.tricks).slice(0, 20)) if (/^[a-zA-Z]{1,12}$/.test(k)) o.tricks[k] = count(v);
   return o;

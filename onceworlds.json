@@ -1,33 +1,198 @@
 {
   "slug": "birds-of-a-feather",
   "name": "Birds of a Feather",
-  "description": "Lead a flock across the sunset: gather grey birds, steal rival flocks, be the biggest at sundown.",
+  "description": "Lead a flock through the sunset: gather birds, steal from bigger flocks, catch rare ones, and be the biggest at sundown.",
   "dir": "dist",
   "productionBranch": "main",
   "genre": "Action",
   "icon": "store/icon.png",
-  "thumbnails": ["store/thumb-1.png", "store/thumb-2.png", "store/thumb-3.png", "store/thumb-4.png"],
+  "thumbnails": [
+    "store/thumb-1.png",
+    "store/thumb-2.png",
+    "store/thumb-3.png",
+    "store/thumb-4.png"
+  ],
   "badges": [
-    { "id": "first-flock", "name": "First Flock", "description": "Gather 50 birds in one sunset.", "icon": "store/badge-first-flock.png" },
-    { "id": "hundred-birds", "name": "Hundred Birds", "description": "Lead a flock of 100.", "icon": "store/badge-hundred-birds.png" },
-    { "id": "murmuration", "name": "Murmuration", "description": "Lead a flock of 400.", "icon": "store/badge-murmuration.png" },
-    { "id": "tail-cutter", "name": "Tail Cutter", "description": "Steal 10 birds in one pass from a bigger flock.", "icon": "store/badge-tail-cutter.png" },
-    { "id": "hawk-dodger", "name": "Hawk Dodger", "description": "Make the hawk miss your flock of 40 or more.", "icon": "store/badge-hawk-dodger.png" },
-    { "id": "sundown-king", "name": "Sundown King", "description": "Biggest flock at sundown with 4 or more flocks in the sky.", "icon": "store/badge-sundown-king.png" },
-    { "id": "thermal-rider", "name": "Thermal Rider", "description": "Ride 5 thermals in one sunset.", "icon": "store/badge-thermal-rider.png" },
-    { "id": "migration", "name": "Migration", "description": "Earn a feather in all four Migration places.", "icon": "store/badge-migration.png" },
-    { "id": "twelve-feathers", "name": "Twelve Feathers", "description": "Earn all 12 Migration feathers.", "icon": "store/badge-twelve-feathers.png" }
+    {
+      "id": "first-flock",
+      "name": "First Flock",
+      "description": "Gather 50 birds in one sunset.",
+      "icon": "store/badge-first-flock.png"
+    },
+    {
+      "id": "hundred-birds",
+      "name": "Hundred Birds",
+      "description": "Lead a flock of 100.",
+      "icon": "store/badge-hundred-birds.png"
+    },
+    {
+      "id": "murmuration",
+      "name": "Murmuration",
+      "description": "Lead a flock of 400.",
+      "icon": "store/badge-murmuration.png"
+    },
+    {
+      "id": "tail-cutter",
+      "name": "Tail Cutter",
+      "description": "Steal 10 birds in one pass from a bigger flock.",
+      "icon": "store/badge-tail-cutter.png"
+    },
+    {
+      "id": "hawk-dodger",
+      "name": "Hawk Dodger",
+      "description": "Make the hawk miss your flock of 40 or more.",
+      "icon": "store/badge-hawk-dodger.png"
+    },
+    {
+      "id": "sundown-king",
+      "name": "Sundown King",
+      "description": "Biggest flock at sundown with 4 or more flocks in the sky.",
+      "icon": "store/badge-sundown-king.png"
+    },
+    {
+      "id": "thermal-rider",
+      "name": "Thermal Rider",
+      "description": "Ride 5 thermals in one sunset.",
+      "icon": "store/badge-thermal-rider.png"
+    },
+    {
+      "id": "migration",
+      "name": "Migration",
+      "description": "Earn a feather in all four Migration places.",
+      "icon": "store/badge-migration.png"
+    },
+    {
+      "id": "twelve-feathers",
+      "name": "Twelve Feathers",
+      "description": "Earn all 12 Migration feathers.",
+      "icon": "store/badge-twelve-feathers.png"
+    },
+    {
+      "id": "full-chorus",
+      "name": "Full Chorus",
+      "description": "Sing a Chorus of six: six gathers, one after another.",
+      "icon": "store/badge-full-chorus.png"
+    },
+    {
+      "id": "rare-bird",
+      "name": "Rare Bird",
+      "description": "Catch a rare bird on its landmark.",
+      "icon": "store/badge-rare-bird.png"
+    },
+    {
+      "id": "legendary",
+      "name": "Legendary",
+      "description": "Catch a legendary bird.",
+      "icon": "store/badge-legendary.png"
+    },
+    {
+      "id": "aviary-12",
+      "name": "Full Perch",
+      "description": "Have twelve species in your Aviary.",
+      "icon": "store/badge-aviary-12.png"
+    },
+    {
+      "id": "level-ten",
+      "name": "Level Ten",
+      "description": "Reach level 10.",
+      "icon": "store/badge-level-ten.png"
+    },
+    {
+      "id": "seven-days",
+      "name": "Seven Sunsets",
+      "description": "Fly on seven days in a row.",
+      "icon": "store/badge-seven-days.png"
+    },
+    {
+      "id": "daily-sunset",
+      "name": "Daily Sunset",
+      "description": "Fly a Daily Sunset.",
+      "icon": "store/badge-daily-sunset.png"
+    }
   ],
   "controls": [
-    { "keys": ["Mouse"], "action": "Steer: the bird turns toward the cursor" },
-    { "keys": ["A", "D"], "action": "Turn left and right" },
-    { "keys": ["Arrows"], "action": "Turn, climb and dive" },
-    { "keys": ["W", "S"], "action": "Climb and dive" },
-    { "keys": ["Hold Space", "Hold Click"], "action": "Boost" },
-    { "keys": ["Stick"], "action": "Steer, climb and dive on a touch screen" },
-    { "keys": ["Boost"], "action": "Boost on a touch screen" },
-    { "keys": ["Space", "Enter"], "action": "Fly, and the main sign on every screen" },
-    { "keys": ["M"], "action": "Migration, on the night screen" },
-    { "keys": ["Esc"], "action": "Pause a Migration place" }
-  ]
+    {
+      "keys": [
+        "Mouse"
+      ],
+      "action": "Fly toward the cursor"
+    },
+    {
+      "keys": [
+        "W",
+        "A",
+        "S",
+        "D"
+      ],
+      "action": "Fly that way"
+    },
+    {
+      "keys": [
+        "Arrows"
+      ],
+      "action": "Fly that way"
+    },
+    {
+      "keys": [
+        "Hold Click",
+        "Hold Space"
+      ],
+      "action": "Boost"
+    },
+    {
+      "keys": [
+        "Stick"
+      ],
+      "action": "Fly that way on a touch screen"
+    },
+    {
+      "keys": [
+        "Boost"
+      ],
+      "action": "Boost on a touch screen"
+    },
+    {
+      "keys": [
+        "Space",
+        "Enter"
+      ],
+      "action": "Fly, and the main sign on every screen"
+    },
+    {
+      "keys": [
+        "T"
+      ],
+      "action": "Today: goals and the Daily Sunset"
+    },
+    {
+      "keys": [
+        "B"
+      ],
+      "action": "The Aviary"
+    },
+    {
+      "keys": [
+        "M"
+      ],
+      "action": "Migration, on the night screen"
+    },
+    {
+      "keys": [
+        "Esc"
+      ],
+      "action": "Back, or pause a Migration place"
+    }
+  ],
+  "data": {
+    "daily": {
+      "type": "list",
+      "max": 100,
+      "bytes": 64
+    },
+    "daily-flown": {
+      "type": "counter",
+      "add": 1,
+      "reset": "daily"
+    }
+  }
 }
