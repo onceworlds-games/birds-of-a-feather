@@ -261,6 +261,98 @@ export class Audio {
     });
   }
 
+  /** A note of a Chorus: each gather in quick succession sings one step higher, in the music's key. */
+  note(step) {
+    this.safe(() => {
+      const t = this.t;
+      const i = Math.min(D_MAJOR_PENTA.length - 1, 1 + step);
+      const m = D_MAJOR_PENTA[i] + 12;
+      this.tone('sine', mtof(m) * 0.985, mtof(m), t, 0.008, 0.42, step > 1 ? 0.085 : 0.05, this.fx, 0.55);
+      this.tone('triangle', mtof(m - 12), mtof(m - 12), t, 0.01, 0.3, 0.03, this.fx, 0.4);
+      // a chord grows under it from the third note on
+      if (step >= 3) this.tone('sine', mtof(m - 5), mtof(m - 5), t + 0.02, 0.01, 0.5, 0.04, this.fx, 0.6);
+      if (step >= 5) this.tone('sine', mtof(m + 7), mtof(m + 7), t + 0.04, 0.01, 0.7, 0.035, this.fx, 0.7);
+    });
+  }
+
+  tailwind() {
+    this.safe(() => {
+      const t = this.t;
+      this.burst(t, 500, 0.4, 0.25, 1.4, 0.2, 'lowpass');
+      this.burst(t + 0.1, 2200, 0.8, 0.4, 1.0, 0.06);
+      [62, 66, 69, 74, 78].forEach((m, i) => this.tone('sine', mtof(m + 12), mtof(m + 12), t + i * 0.05, 0.01, 0.5, 0.05, this.fx, 0.7));
+    });
+  }
+
+  /** A Tail cut: a snap and a run of falling chirps from the flock that lost it. */
+  cut() {
+    this.safe(() => {
+      const t = this.t;
+      this.tone('square', 900, 200, t, 0.002, 0.09, 0.08);
+      this.burst(t, 3200, 1.2, 0.002, 0.18, 0.18);
+      this.tone('sine', 90, 45, t, 0.003, 0.35, 0.3);
+      for (let i = 0; i < 6; i++) this.chirp(t + 0.08 + i * 0.04, D_MAJOR_PENTA[3 + i], true, 0.05);
+    });
+  }
+
+  scatter() {
+    this.safe(() => {
+      const t = this.t;
+      this.tone('sine', 140, 40, t, 0.003, 0.6, 0.38);
+      this.burst(t, 1200, 0.5, 0.005, 0.9, 0.24);
+      for (let i = 0; i < 12; i++) this.chirp(t + 0.05 + Math.random() * 0.5, D_MAJOR_PENTA[Math.floor(Math.random() * D_MAJOR_PENTA.length)], Math.random() < 0.5, 0.045);
+    });
+  }
+
+  slingshot() {
+    this.safe(() => {
+      const t = this.t;
+      this.tone('sine', 180, 900, t, 0.01, 0.35, 0.12, this.fx, 0.3);
+      this.burst(t, 900, 0.6, 0.05, 0.5, 0.14);
+    });
+  }
+
+  /** A rare bird joins: a bell and a bright little song; a legendary one rings longer. */
+  rare(rarity) {
+    this.safe(() => {
+      const t = this.t;
+      const bells = rarity === 2 ? [74, 78, 81, 86, 90, 93] : rarity === 1 ? [74, 78, 81, 86] : [74, 81, 86];
+      bells.forEach((m, i) => {
+        this.tone('sine', mtof(m), mtof(m), t + i * 0.09, 0.003, 1.2, 0.07, this.fx, 0.8);
+        this.tone('sine', mtof(m) * 2.76, mtof(m) * 2.76, t + i * 0.09, 0.003, 0.4, 0.015, this.fx, 0.8);
+      });
+      for (let i = 0; i < 8 + rarity * 6; i++) this.chirp(t + 0.3 + Math.random() * 0.9, D_MAJOR_PENTA[4 + Math.floor(Math.random() * 7)], Math.random() < 0.7, 0.04);
+    });
+  }
+
+  goal() {
+    this.safe(() => {
+      const t = this.t;
+      [69, 74, 78, 81].forEach((m, i) => this.tone('triangle', mtof(m), mtof(m), t + i * 0.08, 0.005, 0.5, 0.06, this.fx, 0.6));
+    });
+  }
+
+  /** One line of the night's tally adding up (higher as it goes). */
+  tally(i) {
+    this.safe(() => {
+      const t = this.t;
+      const m = D_MAJOR_PENTA[Math.min(D_MAJOR_PENTA.length - 1, 2 + i)] + 12;
+      this.tone('triangle', mtof(m), mtof(m), t, 0.003, 0.18, 0.05, this.fx, 0.3);
+      this.burst(t, 4000, 2, 0.001, 0.04, 0.04);
+    });
+  }
+
+  levelUp() {
+    this.safe(() => {
+      const t = this.t;
+      [62, 66, 69, 74, 78, 81, 86].forEach((m, i) => {
+        this.tone('triangle', mtof(m), mtof(m), t + i * 0.07, 0.01, 0.9, 0.05, this.fx, 0.6);
+        this.tone('sine', mtof(m + 12), mtof(m + 12), t + i * 0.07, 0.01, 0.6, 0.03, this.fx, 0.6);
+      });
+      this.tone('sine', mtof(50), mtof(50), t, 0.02, 1.8, 0.12, this.fx, 0.6);
+    });
+  }
+
   /** Each frame: wings by flock size, wind by speed, and the music. */
   update(dt, { birds = 0, speed = 14, boosting = false, phase = 'title', last30 = false, flying = false }) {
     if (!this.ok) return;

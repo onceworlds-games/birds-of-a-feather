@@ -1,7 +1,8 @@
 // Migration: places, feathers and unlocking.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PLACES, feathersFor, unlocked, totalFeathers, placeSky, MIGRATION_DAY } from '../src/sim/migration.js';
+import { PLACES, feathersFor, unlocked, totalFeathers, placeSky, MIGRATION_DAY, dailySky, DAILY_DAY } from '../src/sim/migration.js';
+import { dailySpec } from '../src/sim/progress.js';
 
 test('feathers by goal', () => {
   const salt = PLACES[0];
@@ -34,4 +35,31 @@ test('every place runs to its sundown with its rivals', () => {
     assert.equal(sky.census().total, total);
     assert.ok(sky.standings.some((s) => s.id === 'pme'));
   });
+});
+
+test('the Daily Sunset is the same sky for everyone on a day: its rivals, birds and rare birds', () => {
+  const spec = dailySpec(20400);
+  const a = dailySky(spec);
+  const b = dailySky(spec);
+  assert.equal(a.map.id, spec.mapId);
+  assert.equal(a.flocks.size, spec.rivals + 1);
+  assert.deepEqual(a.rares, b.rares);
+  assert.deepEqual([...a.perched], [...b.perched]);
+  // rivals that nobody disturbs fly the same sunset
+  const L = a.flocks.get('pme').leader;
+  for (let k = 0; k < 120; k++) {
+    for (const s of [a, b]) {
+      s.feed('pme', L.x, L.y, L.z, L.yaw, false);
+      s.advance(0.25);
+      s.drainEvents();
+    }
+  }
+  const counts = (s) => [...s.flocks.values()].map((f) => `${f.id}:${f.n}`).join(',');
+  assert.equal(counts(a), counts(b));
+  assert.notDeepEqual(dailySky(dailySpec(20401)).rares, a.rares);
+  while (a.phase === 'day') {
+    a.advance(0.5);
+    a.drainEvents();
+  }
+  assert.ok(Math.abs(a.time - DAILY_DAY) < 0.6);
 });

@@ -83,7 +83,7 @@ export class Net {
   }
 
   /**
-   * One frame. own: { st: 'title' | 'fly' | 'mig', leader, nw } (the page's own lead bird, already flown this frame).
+   * One frame. own: { st: 'title' | 'fly' | 'mig', leader, nw, look } (the page's own lead bird, already flown this frame).
    */
   update(dt, own) {
     const room = this.room;
@@ -96,13 +96,26 @@ export class Net {
     this.presenceAcc += dt;
     if (this.presenceAcc >= PRESENCE_EVERY && own.leader) {
       this.presenceAcc = 0;
-      const extra = { nw: own.nw };
+      const extra = { nw: own.nw, look: own.look };
       if (this.authority) {
         const flown = [];
         for (const f of this.sky.flocks.values()) if (f.kind === 'rival' || f.away) flown.push(f);
         extra.rv = W.writeLeaders(flown);
       }
       room.setPresence(W.writePresence(own.leader, own.st, this.myRid, extra));
+      this.readLooks();
+    }
+  }
+
+  /** What other players' lead birds look like, from their own presence (cosmetic: a bad look draws the starling). */
+  readLooks() {
+    const room = this.room;
+    for (const p of room.players.values()) {
+      if (p.id === room.me.id) continue;
+      const f = this.sky.flocks.get(W.flockIdOf(p.id));
+      if (!f) continue;
+      const pr = W.readPresence(p.presence);
+      if (pr) f.look = pr.look;
     }
   }
 

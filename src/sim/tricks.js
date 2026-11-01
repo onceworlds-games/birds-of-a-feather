@@ -70,7 +70,8 @@ export class Tricks {
   }
 
   /**
-   * Read a batch of events at sky time `t`. `nOf(id)` gives a flock's count after them (for a Scatter). Returns the callouts:
+   * Read a batch of events at sky time `t`. A steal says what its victim has left; for one that doesn't, `nOf(id)` gives a
+   * flock's count after the batch (a Scatter is taking the last bird). Returns the callouts:
    * [{ kind, name, song, step?, k?, species?, x?, y?, z? }].
    */
   push(events, t, nOf = () => 1) {
@@ -120,7 +121,7 @@ export class Tricks {
               this.call(out, 'tailCut', SONG.tailCut, { k: e.pass, x: e.x, y: e.y, z: e.z });
             }
             this.passes.set(e.from, p);
-            if (nOf(e.from) === 0 && !this.scattered.has(e.from)) {
+            if ((e.left ?? nOf(e.from)) === 0 && !this.scattered.has(e.from)) {
               this.scattered.add(e.from);
               this.call(out, 'scatter', SONG.scatter, { x: e.x, y: e.y, z: e.z });
             }

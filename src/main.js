@@ -8,6 +8,7 @@ import { Birds } from './render/birds.js';
 import { Fx } from './render/fx.js';
 import { phaseAt } from './render/look.js';
 import { Hud } from './hud.js';
+import { speciesPortraits } from './render/portraits.js';
 import { Screens, ordinal } from './screens.js';
 import { Input } from './input.js';
 import { Audio } from './audio.js';
@@ -15,8 +16,11 @@ import { Net, stubRoom } from './net.js';
 import { Autopilot } from './autoplay.js';
 import { newLeader, stepLeader } from './sim/flight.js';
 import { Trail, newPuffs, shapeOf } from './sim/flock.js';
-import { FLIGHT, FLOCK, ROUND, SLOTS, PALETTE, JOIN, SKILLS, HAWK } from './sim/config.js';
-import { PLACES, MIGRATION_DAY, placeSky, feathersFor, unlocked, totalFeathers } from './sim/migration.js';
+import { FLIGHT, FLOCK, ROUND, SLOTS, PALETTE, JOIN, SKILLS, HAWK, RARE } from './sim/config.js';
+import { PLACES, placeSky, dailySky, feathersFor, unlocked, totalFeathers } from './sim/migration.js';
+import { Tricks, TRICK } from './sim/tricks.js';
+import * as G from './sim/progress.js';
+import { SPECIES, SPECIES_BY_ID } from './sim/species.js';
 import { getMap, surfaceAt, wirePoint } from './sim/maps.js';
 import { readPresence, cleanName } from './sim/wire.js';
 import { clamp, angleDiff } from './sim/rng.js';
@@ -85,18 +89,7 @@ function setWorld(mapId) {
 
 // ------------------------------------------------------------------ the profile (ow.save)
 
-const PROFILE0 = () => ({ v: 1, best: 0, biggest: 0, sunsets: 0, wins: 0, gathered: 0, stolen: 0, feathers: [0, 0, 0, 0], skill: 'normal', hints: [] });
-let profile = PROFILE0();
-
-function cleanProfile(p) {
-  const o = PROFILE0();
-  if (!p || typeof p !== 'object') return o;
-  for (const k of ['best', 'biggest', 'sunsets', 'wins', 'gathered', 'stolen']) if (Number.isFinite(p[k]) && p[k] >= 0) o[k] = Math.floor(Math.min(p[k], 1e9));
-  if (Array.isArray(p.feathers)) o.feathers = [0, 1, 2, 3].map((i) => (Number.isInteger(p.feathers[i]) ? clamp(p.feathers[i], 0, 3) : 0));
-  if (SKILLS.includes(p.skill)) o.skill = p.skill;
-  if (Array.isArray(p.hints)) o.hints = p.hints.filter((h) => typeof h === 'string' && h.length < 20).slice(0, 30);
-  return o;
-}
+let profile = G.PROFILE0();
 
 async function loadProfile() {
   let raw = null;
@@ -108,7 +101,7 @@ async function loadProfile() {
       raw = null;
     }
   }
-  return cleanProfile(raw);
+  return G.cleanProfile(raw);
 }
 
 function saveProfile() {
@@ -123,8 +116,16 @@ function saveProfile() {
   }
 }
 
-/** What the player flies as: the lead bird's species, the trail behind it and the flock's flair. */
+/** What the player flies as: the lead bird's species (an index), the trail behind it and the flock's flair. */
 const equipped = { species: 0, trail: 0, flair: 0 };
+function syncLook() {
+  equipped.species = SPECIES_BY_ID.get(profile.equip.species) ?? 0;
+  equipped.trail = profile.equip.trail;
+  equipped.flair = profile.equip.flair;
+}
+
+/** Today, by the platform's clock (the same day for everyone). */
+const today = () => G.dayNumber(now());
 
 const awarded = new Set();
 function award(id) {
@@ -240,7 +241,15 @@ const S = {
   roostMap: null,
   stormHintAt: -99,
   shakeDir: { x: 0, z: 0 },
+  hitstop: 0, // seconds the birds hold still on a big hit
+  slingAt: -99, // when my bird last came off a thermal it rode (a boost soon after is a Slingshot)
+  goalsSeen: [false, false, false], // the day's goals already called out
+  goalAt: 0,
+  back: null, // where a menu goes back to: 'title' or 'sky'
 };
+
+/** What I did this sunset (or this Migration place, or this Daily Sunset): its tricks, song, chorus and rare birds. */
+const tricks = new Tricks(null);
 
 function newSunsetStats() {
   return { gathered: 0, stolen: 0, rides: 0, maxN: 8, peak: 0 };
@@ -344,6 +353,7 @@ function steer(dt, sky) {
 
 function flyOwn(dt, sky) {
   const stick = steer(dt, sky);
+  stick.wind = sky.phase === 'day' && tricks.tailwind(sky.clock);
   const map = sky.map;
   me.acc += dt;
   let steps = 0;
@@ -358,10 +368,19 @@ function flyOwn(dt, sky) {
       if (e === 'boost') {
         audio.boost();
         if (!reducedMotion()) S.trauma = Math.max(S.trauma, 0.12);
+        // off a thermal and straight into a boost: a Slingshot
+        if (sky.phase === 'day' && me.t - S.slingAt < 1.5) {
+          S.slingAt = -99;
+          trickCall(tricks.slingshot(), sky);
+        }
       } else if (e === 'thermal-in') audio.thermal();
       else if (e === 'ride') {
         S.sunset.rides++;
         if (S.sunset.rides >= 5) award('thermal-rider');
+        if (sky.phase === 'day') {
+          S.slingAt = me.t;
+          trickCall(tricks.thermal(), sky);
+        }
       }
     }
   }
@@ -494,7 +513,7 @@ function updateCamera(dt, sky) {
   cam.punchT = Math.max(0, cam.punchT - dt);
   const wantPunch = cam.punchT > 0 && !rm ? cam.punchTo : 1;
   cam.punch += (wantPunch - cam.punch) * (1 - Math.exp(-dt * (wantPunch < cam.punch ? 9 : 2.2)));
-  if (S.mode === 'title' || S.mode === 'boot' || ((S.mode === 'closed' || S.mode === 'notice') && !me.L)) {
+  if (S.mode === 'title' || S.mode === 'boot' || S.mode === 'today' || S.mode === 'aviary' || ((S.mode === 'closed' || S.mode === 'notice') && !me.L)) {
     titleWant(map, cam.wantPos, cam.wantLook);
     rate = 2;
     lookRate = 2;
@@ -679,6 +698,7 @@ function onEvents(list, sky) {
   birds.push(list);
   const id = myId();
   const L = me.L;
+  const rm = reducedMotion();
   for (const e of list) {
     switch (e.type) {
       case 'join':
@@ -690,19 +710,37 @@ function onEvents(list, sky) {
           S.sunset.gathered += e.k;
           S.lastGather = S.flyT;
           if (S.sunset.gathered >= 50) award('first-flock');
+          // the roof they left: a puff of down
+          if (e.cloud === undefined) fx.burst(e.x, y + 1, e.z, Math.min(10, 2 + e.k), PALETTE.ash, 3.5);
+        }
+        break;
+      case 'rare':
+        if (e.id === id && L) {
+          hud.addFloat(0, 0, e.k, true);
+          audio.gather(e.k);
+          S.sunset.gathered += e.k;
+          S.lastGather = S.flyT;
+        } else if (near(e.x, e.z, 160)) {
+          const sp = SPECIES[e.species];
+          fx.burst(e.x, e.y, e.z, 14, sp.c[3], 6);
         }
         break;
       case 'steal':
         if (e.to === id || e.from === id) {
           const gain = e.to === id;
           project(e.x, e.y, e.z, pb);
+          const other = sky.flocks.get(gain ? e.from : e.to);
           if (gain) {
             if (!pb.behind) hud.addFloat(pb.x, pb.y, e.k, true);
             S.sunset.stolen += e.k;
             if (e.pass >= 10 && e.bigger) award('tail-cutter');
+            // feathers fly off the flock that lost them
+            if (other) fx.burst(e.x, e.y, e.z, Math.min(8, 1 + e.k), SLOTS[other.slot].hex, 5);
           } else {
             hud.addFloat(0, 0, e.k, false);
-            if (!reducedMotion()) S.trauma = Math.min(1, S.trauma + Math.min(0.35, e.k / 30));
+            if (!rm) S.trauma = Math.min(1, S.trauma + Math.min(0.35, e.k / 30));
+            const mine = sky.flocks.get(id);
+            if (mine) fx.burst(e.x, e.y, e.z, Math.min(8, 1 + e.k), SLOTS[mine.slot].hex, 5);
           }
           if (!pb.behind) hud.addWhy(pb.x, pb.y - 30, gain ? e.lw : e.ll, gain ? e.ll : e.lw, !gain);
           audio.steal(gain, e.k);
@@ -719,29 +757,172 @@ function onEvents(list, sky) {
         if (near(e.x, e.z, 140) || mine) {
           audio.strike();
           fx.burst(e.x, e.y, e.z, 26, PALETTE.ash, 9);
-          if (!reducedMotion()) S.slowmo = 0.09;
+          if (!rm) S.slowmo = 0.09;
         }
         if (mine) {
           hud.addFloat(0, 0, mine, false);
-          if (!reducedMotion()) S.trauma = Math.min(1, S.trauma + 0.6);
+          if (!rm) S.trauma = Math.min(1, S.trauma + 0.6);
           const f = sky.flocks.get(id);
           if (f) fx.burst(e.x, e.y, e.z, 16, SLOTS[f.slot].hex, 7);
         }
-        if (e.target === id && e.dodged) {
-          audio.dodged();
-          hud.showHint('Dodged!', 1.6);
-          S.hintAt = performance.now() / 1000;
-          award('hawk-dodger');
-        }
+        if (e.target === id && e.dodged) award('hawk-dodger');
         break;
       }
       case 'scatter':
-        if (near(e.x, e.z, 120)) fx.burst(e.x, e.y, e.z, 12, PALETTE.ash, 6);
+        if (near(e.x, e.z, 120)) {
+          const f = sky.flocks.get(e.id);
+          fx.burst(e.x, e.y, e.z, 12, PALETTE.ash, 6);
+          if (f) fx.burst(e.x, e.y, e.z, 18, SLOTS[f.slot].hex, 8);
+        }
         break;
       default:
         break;
     }
   }
+  // what I did, as tricks: named, worth song, called out
+  if (sky.phase === 'day' && L) {
+    tricks.myId = id;
+    for (const c of tricks.push(list, sky.clock, (fid) => sky.flocks.get(fid)?.n ?? 0)) trickCall(c, sky);
+  }
+}
+
+const TRICK_WIND = TRICK.tailwind;
+const CHORUS_GAP = TRICK.chorusGap;
+const RARITY_NAMES = ['Common', 'Rare', 'Legendary'];
+const RARITY_COLORS = [PALETTE.cream, PALETTE.gold, PALETTE.rose];
+
+/** A trick happened: its callout, its sound and how it feels. */
+function trickCall(c, sky) {
+  if (!c) return;
+  const rm = reducedMotion();
+  switch (c.kind) {
+    case 'note':
+      audio.note(1);
+      break;
+    case 'chorus':
+      audio.note(c.step);
+      hud.addCallout({ title: `Chorus ×${c.step}`, song: c.song, color: PALETTE.gold, size: 26 + Math.min(c.step, 6) * 2 });
+      if (c.step >= 6) award('full-chorus');
+      break;
+    case 'tailwind':
+      audio.tailwind();
+      hud.addCallout({ title: 'Tailwind', color: PALETTE.cream, size: 38 });
+      if (!rm) punchIn(0.9, 0.35);
+      break;
+    case 'tailCut':
+      audio.cut();
+      hud.addCallout({ title: 'Tail cut', song: c.song, color: PALETTE.gold, size: 38 });
+      if (!rm) {
+        S.hitstop = 0.07;
+        S.trauma = Math.max(S.trauma, 0.3);
+        punchIn(0.84, 0.5);
+      }
+      break;
+    case 'scatter':
+      audio.scatter();
+      hud.addCallout({ title: 'Scatter', song: c.song, color: PALETTE.gold, size: 40 });
+      if (!rm) {
+        S.hitstop = 0.1;
+        S.slowmo = 0.3;
+        punchIn(0.8, 0.6);
+      }
+      break;
+    case 'dodge':
+      audio.dodged();
+      hud.addCallout({ title: 'Dodged', song: c.song, color: PALETTE.cream, size: 38 });
+      break;
+    case 'closeCall':
+      hud.addCallout({ title: 'Close call', song: c.song, color: PALETTE.cream, size: 30 });
+      break;
+    case 'scavenge':
+      hud.addCallout({ title: 'Scavenge', song: c.song, color: PALETTE.cream, size: 28 });
+      break;
+    case 'thermal':
+      hud.addCallout({ title: 'Thermal', song: c.song, color: PALETTE.cream, size: 26 });
+      break;
+    case 'slingshot':
+      audio.slingshot();
+      hud.addCallout({ title: 'Slingshot', song: c.song, color: PALETTE.gold, size: 34 });
+      if (!rm) punchIn(0.88, 0.4);
+      break;
+    case 'rare':
+      catchRare(c);
+      break;
+    default:
+      break;
+  }
+}
+
+/** A rare bird joined my flock: into the Aviary, a callout in its rarity's colour, feathers in its own. */
+function catchRare(c) {
+  const sp = SPECIES[c.species];
+  if (!sp) return;
+  const fresh = !profile.aviary[sp.id];
+  if (!AUTO) {
+    profile.aviary[sp.id] = (profile.aviary[sp.id] ?? 0) + 1;
+    saveProfile();
+  }
+  hud.addCallout({ title: sp.name, sub: fresh ? 'New bird' : RARITY_NAMES[sp.rarity], song: c.song, color: RARITY_COLORS[sp.rarity], size: 40 });
+  audio.rare(sp.rarity);
+  fx.burst(c.x, c.y, c.z, 30, sp.c[3], 9);
+  fx.burst(c.x, c.y, c.z, 18, sp.c[0], 6);
+  fx.flare(c.x, c.y, c.z, sp.c[3]);
+  if (!reducedMotion()) {
+    punchIn(0.8, 0.8);
+    S.slowmo = 0.22;
+  }
+  award('rare-bird');
+  if (sp.rarity === 2) award('legendary');
+  const caught = G.leadable(profile).length;
+  if (caught >= 12) award('aviary-12');
+  submit('aviary', caught);
+}
+
+/** The day's goals with this run's numbers counted in: [{ text, target, value, done }]. */
+function goalView(withRun = true) {
+  const day = today();
+  const goals = G.goalsFor(day);
+  const d = profile.daily.day === day ? profile.daily : null;
+  const run = withRun && flying() ? runStats(null) : null;
+  return goals.map((g, i) => {
+    const base = d ? d.progress[i] : 0;
+    const v = run ? (g.mode === 'max' ? Math.max(base, run[g.stat] ?? 0) : base + (run[g.stat] ?? 0)) : base;
+    return { text: g.text, target: g.target, value: Math.min(v, g.target), done: (d?.done[i] ?? false) || v >= g.target };
+  });
+}
+
+/** This run's numbers for the goals; `end` ({ rank, flocks, n }) at sundown, null while still flying. */
+function runStats(end) {
+  return {
+    gathered: tricks.gathered,
+    stolen: tricks.stolen,
+    bestChain: tricks.bestChain,
+    tailCut: tricks.counts.tailCut,
+    rares: tricks.rares.length,
+    dodge: tricks.counts.dodge,
+    top3: end && end.flocks >= 3 && end.rank < 3 && end.n > 0 ? 1 : 0,
+    maxN: S.sunset.maxN,
+    sunsets: end ? 1 : 0,
+    thermal: tricks.counts.thermal,
+  };
+}
+
+/** While flying: a goal reached mid-sunset is called out then (it's counted at sundown). */
+function watchGoals(dt) {
+  S.goalAt -= dt;
+  if (S.goalAt > 0 || AUTO) return;
+  S.goalAt = 0.5;
+  const day = today();
+  if (S.goalsDay !== day) {
+    S.goalsDay = day;
+    S.goalsSeen = goalView(false).map((g) => g.done);
+  }
+  goalView().forEach((g, i) => {
+    if (!g.done || S.goalsSeen[i]) return;
+    S.goalsSeen[i] = true;
+    hud.addCallout({ title: 'Daily goal', sub: g.text, song: G.GOAL_SONG, color: PALETTE.gold, size: 34 });
+    audio.goal();
+  });
 }
 
 /** The hawk's circle and stoop, read from the sky (the host's and every mirror's alike). */
@@ -762,13 +943,23 @@ function watchHawk(sky) {
 /** The light's share of the sunset for a sky (0 gold → 1 sundown → 1.12 night; a dawn sweeps back to 0). */
 function lightShare(sky) {
   const day = sky.opts.day;
-  const start = S.mig ? PLACES[S.mig.index].light : 0;
+  const start = S.mig ? S.mig.light : 0;
   if (sky.parked) return 0.58; // a waiting sky shows the low ember sun
   if (sky.phase === 'day') return start + (1 - start) * clamp(sky.time / day, 0, 1);
   const n = sky.time - day;
   if (n < ROUND.sundown) return 1 + 0.12 * (n / ROUND.sundown);
   if (S.mig || n < ROUND.results) return 1.12;
   return 1.12 * clamp(1 - (n - ROUND.results) / (ROUND.night - ROUND.results), 0, 1);
+}
+
+/** A run starts (a sunset in the shared sky, a Migration place, a Daily Sunset): nothing done yet. */
+function newRun() {
+  S.sunset = newSunsetStats();
+  S.flyT = 0;
+  S.lastGather = 0;
+  S.slingAt = -99;
+  S.report = null;
+  tricks.reset();
 }
 
 /** A new sunset in the shared sky: fresh birds, the camera back behind the bird. */
@@ -779,11 +970,20 @@ function newSunsetView() {
   S.nightRid = -1;
   S.nightShown = false;
   S.nightResults = false;
-  S.flyT = 0;
-  S.lastGather = 0;
   S.lastLeft = 999;
-  S.sunset = newSunsetStats();
+  newRun();
   if (S.mode === 'sky' && screens.current === 'night') screens.clear();
+}
+
+/** The shared sky moved on to its next place at dawn: build that place (Migration and the Daily Sunset keep their own). */
+function followPlace() {
+  setWorld(net.sky.map.id);
+  birds.reset();
+  birds.setRoost(null);
+  fx.clearFeathers();
+  fx.setStorm(!!net.sky.storm);
+  seatTitleBirds(net.sky.map);
+  titleLeader = null;
 }
 
 /** Which flocks land on which roost wire: the top five, plus mine. */
@@ -798,7 +998,44 @@ function roostAssign(standings, mine) {
   return m;
 }
 
-/** The sky reached sundown: the roost, the results, saves and badges. */
+/**
+ * A run ended: its song (tally), the level it brings, the day's goals, the streak; saved. Returns the report the night (or
+ * a result screen) shows: { lines, total, before, after, unlocks }.
+ */
+function settle(rank, n, flocks) {
+  const day = today();
+  const before = profile.xp;
+  const firstToday = profile.daily.day !== day || profile.daily.played === 0;
+  const goals = G.applyGoals(profile.daily, day, runStats({ rank, flocks, n }));
+  profile.daily.played++;
+  const grew = G.bumpStreak(profile.streak, day);
+  const t = G.tally({ n, rank, flocks, trickSong: tricks.song, rares: tricks.rares, goals, firstToday, streak: grew ? profile.streak.count : 0 });
+  profile.xp = Math.min(1e8, profile.xp + t.total);
+  for (const [k, v] of Object.entries(tricks.counts)) if (v > 0) profile.tricks[k] = (profile.tricks[k] ?? 0) + v;
+  const L0 = G.levelOf(before).level;
+  const L1 = G.levelOf(profile.xp).level;
+  S.goalsSeen = profile.daily.done.slice();
+  S.goalsDay = day;
+  saveProfile();
+  if (L1 > L0) submit('level', L1);
+  if (L1 >= 10) award('level-ten');
+  if (profile.streak.count >= 7) award('seven-days');
+  return { lines: t.lines, total: t.total, before, after: profile.xp, unlocks: G.unlocksBetween(L0, L1), played: false };
+}
+
+/** Put on something from the Aviary (or a new unlock's Use sign). */
+function equip(kind, id) {
+  const level = G.levelOf(profile.xp).level;
+  if (kind === 'species' && (id === 'starling' || profile.aviary[id] > 0)) profile.equip.species = id;
+  else if (kind === 'trail' && G.trailOpen(id, level)) profile.equip.trail = id;
+  else if (kind === 'flair' && G.flairOpen(id, level)) profile.equip.flair = id;
+  else return;
+  syncLook();
+  saveProfile();
+}
+const useUnlock = (u) => equip(u.kind, u.id);
+
+/** The sky reached sundown: the roost, the results, the tally, saves and badges. */
 function enterNight(sky) {
   S.nightRid = sky.rid;
   S.nightAt = performance.now() / 1000;
@@ -826,7 +1063,7 @@ function enterNight(sky) {
   if (won) profile.wins++;
   S.nightBest = best;
   S.nightWon = won;
-  saveProfile();
+  S.report = settle(mine, n, standings.length);
   submit('biggest-flock', n);
   if (won) submit('sundowns', profile.wins);
   if (won && standings.length >= 4) award('sundown-king');
@@ -852,9 +1089,14 @@ function showNight(sky) {
   screens.night({
     lines: nightLines(sky),
     best: S.nightBest,
-    migration: S.alone,
+    report: S.report,
+    goals: goalView(false),
+    solo: S.alone,
     skill: hostRivals ? net.skillPick : null,
     onMigration: openRoute,
+    onDaily: startDaily,
+    onAviary: () => openAviary('sky'),
+    onUse: useUnlock,
     onSkill: (id) => {
       net.setSkill(id);
       profile.skill = id;
@@ -896,11 +1138,25 @@ function controls(on) {
   } else sdk(() => ow.controls.set(null));
 }
 
+function titleScreen() {
+  const L = G.levelOf(profile.xp);
+  const streak = profile.streak.day >= today() - 1 ? profile.streak.count : 0;
+  screens.title({
+    level: L.level,
+    share: L.share,
+    streak,
+    goalsDone: goalView(false).filter((g) => g.done).length,
+    onFly: fly,
+    onToday: () => openToday('title'),
+    onAviary: () => openAviary('title'),
+  });
+}
+
 function showTitle() {
   setMode('title');
   me.L = null;
   controls(false);
-  screens.title({ best: profile.best, onFly: fly });
+  titleScreen();
 }
 
 /** Fly: into the shared sky from the title's wire. */
@@ -916,13 +1172,12 @@ function fly() {
   placeLeader(T.x, T.z, T.yaw, undefined, map);
   launchTitleBirds();
   setMode('takeoff');
-  S.flyT = 0;
-  S.lastGather = 0;
+  newRun();
   screens.clear();
   controls(true);
 }
 
-/** Back into the shared sky from anywhere (a Migration, a notice): at the spawn farthest from other flocks. */
+/** Back into the shared sky from anywhere (a Migration, a menu, a notice): at the spawn farthest from other flocks. */
 function backToSky() {
   endMigration();
   screens.clear();
@@ -930,12 +1185,10 @@ function backToSky() {
   const sp = sky.pickSpawn();
   if (!myFlock()) me.n = FLOCK.start;
   // what happened in a Migration place isn't this sunset's
-  S.sunset = newSunsetStats();
+  newRun();
   placeLeader(sp.x, sp.z, sp.yaw, undefined, sky.map);
   startSwoop();
   setMode('takeoff');
-  S.flyT = 0;
-  S.lastGather = 0;
   S.nightShown = false;
   controls(true);
 }
@@ -955,14 +1208,13 @@ function openRoute() {
   });
 }
 
-function startPlace(index) {
-  if (!S.alone) return;
+/** Into a sunset of my own (a Migration place or the Daily Sunset): its place, my bird, the camera's swoop down. */
+function startSolo(run, intro) {
   audio.start();
-  const seed = (Math.floor(now()) ^ (index * 7919)) >>> 0;
-  const sky = placeSky(index, seed, 'pme', 'You');
-  S.mig = { index, sky, seed, endedAt: 0 };
+  S.mig = { endedAt: 0, ...run };
   S.paused = false;
-  setWorld(PLACES[index].map);
+  const sky = run.sky;
+  setWorld(sky.map.id);
   birds.reset();
   birds.setRoost(null);
   fx.clearFeathers();
@@ -975,22 +1227,36 @@ function startPlace(index) {
   cam.pos.set(c.x + 60, 140, c.z + 160);
   cam.look.set(c.x, 0, c.z);
   startSwoop();
-  S.sunset = newSunsetStats();
-  S.flyT = 0;
-  S.lastGather = 0;
+  newRun();
   S.nightRid = -1;
   setMode('intro');
-  screens.intro({ index });
+  screens.intro(intro);
   controls(false);
 }
 
-/** Leave a Migration place (if one is running) and put the shared sky's world back. */
+function startPlace(index) {
+  if (!S.alone) return;
+  const seed = (Math.floor(now()) ^ (index * 7919)) >>> 0;
+  const P = PLACES[index];
+  startSolo({ kind: 'place', index, seed, light: P.light, sky: placeSky(index, seed, 'pme', 'You') }, { top: `${index + 1} of ${PLACES.length}`, name: P.name, goal: P.lines[0] });
+}
+
+/** The Daily Sunset: the day's place, rivals and birds, the same for everyone; the best flock at sundown goes on the board. */
+function startDaily() {
+  if (!S.alone) return;
+  const spec = G.dailySpec(today());
+  const name = PLACE_NAMES[spec.mapId] ?? 'Daily Sunset';
+  startSolo({ kind: 'daily', index: -1, spec, light: 0.12, sky: dailySky(spec, 'pme', 'You') }, { top: 'Daily Sunset', name, goal: 'Biggest flock at sundown' });
+}
+const PLACE_NAMES = Object.fromEntries(PLACES.map((P) => [P.map, P.name]));
+
+/** Leave a Migration place or the Daily Sunset (if one is running) and put the shared sky's world back. */
 function endMigration() {
-  if (!S.mig && world?.map.id === net.sky.opts.mapId) return;
+  if (!S.mig && world?.map.id === net.sky.map.id) return;
   S.mig = null;
   S.paused = false;
-  fx.setStorm(false);
-  setWorld(net.sky.opts.mapId);
+  fx.setStorm(!!net.sky.storm);
+  setWorld(net.sky.map.id);
   birds.reset();
   birds.setRoost(null);
   fx.clearFeathers();
@@ -1015,40 +1281,191 @@ function migTick(dt) {
   const events = sky.drainEvents();
   if (events.length) onEvents(events, sky);
   if (sky.phase === 'night' && !M.endedAt) M.endedAt = performance.now() / 1000;
-  if (S.mode === 'mig' && M.endedAt && performance.now() / 1000 - M.endedAt > 3.4) showPlaceResult();
+  if (S.mode === 'mig' && M.endedAt && performance.now() / 1000 - M.endedAt > 3.4) {
+    if (M.kind === 'daily') showDailyResult();
+    else showPlaceResult();
+  }
+}
+
+/** Where a solo run finished: { rank (0 first), n, flocks }. */
+function soloStanding(sky) {
+  const st = sky.standings ?? [];
+  const k = Math.max(0, st.findIndex((s) => s.id === 'pme'));
+  return { rank: k, n: st[k]?.n ?? 0, flocks: st.length };
 }
 
 function showPlaceResult() {
   const M = S.mig;
-  const sky = M.sky;
   const P = PLACES[M.index];
-  const st = sky.standings ?? [];
-  const k = Math.max(0, st.findIndex((s) => s.id === 'pme'));
-  const n = st[k]?.n ?? 0;
-  const rank = k + 1;
-  const earned = feathersFor(P, rank, n);
+  const { rank, n, flocks } = soloStanding(M.sky);
+  const earned = feathersFor(P, rank + 1, n);
   const before = profile.feathers[M.index];
   profile.feathers[M.index] = Math.max(before, earned);
   const total = totalFeathers(profile.feathers);
   if (profile.feathers.every((f) => f > 0)) award('migration');
   if (total >= 12) award('twelve-feathers');
   if (earned > before) submit('feathers', total);
-  saveProfile();
+  const report = settle(rank, n, flocks);
   setMode('migresult');
   controls(false);
   const open = unlocked(profile.feathers);
   const hasNext = M.index < PLACES.length - 1 && open[M.index + 1] && S.alone;
-  if (earned > 0 || rank === 1) audio.fanfare(true);
+  if (earned > 0 || rank === 0) audio.fanfare(true);
   screens.result({
     index: M.index,
-    rank,
+    rank: rank + 1,
     n,
     earned,
     before,
     hasNext,
+    report,
+    onUse: useUnlock,
     onNext: () => startPlace(M.index + 1),
     onAgain: () => startPlace(M.index),
     onBack: backToSky,
+  });
+}
+
+// ------------------------------------------------------------------ the Daily Sunset's board (ow.data, list "daily")
+
+const DAILY_LOCAL = 'birds-of-a-feather:daily';
+
+/** The day's board: the best flock of each player who flew it today, biggest first: [{ name, n, me }]. */
+async function dailyBoard(day) {
+  const mine = profile.daily.day === day ? profile.daily.best : 0;
+  let items = null;
+  if (ow?.data?.game) items = await sdkAsync(() => ow.data.game.get('daily'));
+  const best = new Map();
+  const myPid = sdk(() => room?.me?.id, null);
+  if (Array.isArray(items)) {
+    for (const it of items.slice(0, 100)) {
+      const v = it?.value;
+      const by = it?.by;
+      if (!v || typeof v !== 'object' || v.d !== day || !Number.isInteger(v.n) || v.n < 0 || v.n > 5000) continue;
+      const id = typeof by?.id === 'string' ? by.id : null;
+      if (!id) continue;
+      const me = id === myPid;
+      const prev = best.get(id);
+      if (!prev || v.n > prev.n) best.set(id, { name: cleanName(by.name) || 'Player', n: v.n, me });
+    }
+  }
+  if (mine > 0 && ![...best.values()].some((r) => r.me)) best.set('me', { name: 'You', n: mine, me: true });
+  return [...best.values()].sort((a, b) => b.n - a.n);
+}
+
+/** How many flew today's Daily Sunset (a counter that starts over every day). */
+async function dailyFlown() {
+  if (!ow?.data?.game) return 0;
+  const v = await sdkAsync(() => ow.data.game.get('daily-flown'));
+  return Number.isInteger(v) && v >= 0 ? v : typeof v?.value === 'number' ? v.value : 0;
+}
+
+async function showDailyResult() {
+  const M = S.mig;
+  const day = M.spec.day;
+  const { rank, n, flocks } = soloStanding(M.sky);
+  const firstRun = profile.daily.day !== day || !profile.daily.flew;
+  const before = profile.daily.day === day ? profile.daily.best : 0;
+  const report = settle(rank, n, flocks); // starts the day over if it's a new one
+  const newBest = n > before;
+  if (newBest) profile.daily.best = n;
+  profile.daily.flew = true;
+  saveProfile();
+  award('daily-sunset');
+  if (!AUTO) {
+    if (firstRun) sdkAsync(() => ow.data.game.add('daily-flown', 1));
+    if (newBest && n > 0) sdkAsync(() => ow.data.game.push('daily', { d: day, n }));
+  }
+  setMode('migresult');
+  controls(false);
+  if (rank === 0 || newBest) audio.fanfare(true);
+  const shown = M;
+  const draw = (board) => {
+    if (S.mig !== shown || S.mode !== 'migresult') return;
+    screens.dailyResult({
+      place: PLACE_NAMES[M.spec.mapId],
+      n,
+      rank: rank + 1,
+      best: profile.daily.best,
+      newBest,
+      board,
+      report,
+      onUse: useUnlock,
+      onAgain: startDaily,
+      onBack: backToSky,
+    });
+  };
+  draw([{ name: 'You', n: profile.daily.best, me: true }]);
+  // the board comes a moment later (the push above is on its way)
+  setTimeout(async () => {
+    const board = await dailyBoard(day);
+    report.played = true;
+    draw(board);
+  }, 2600);
+}
+
+// ------------------------------------------------------------------ menus: Today and the Aviary
+
+/** Leave the sky for a menu (the flock scatters: at night that costs nothing, a new sunset starts every flock over). */
+function leaveForMenu(back) {
+  S.back = back;
+  endMigration();
+  me.L = null;
+  controls(false);
+  birds.setRoost(null);
+}
+function closeMenu() {
+  if (S.back === 'sky') backToSky();
+  else showTitle();
+}
+
+async function openToday(back) {
+  audio.start();
+  leaveForMenu(back);
+  setMode('today');
+  const day = today();
+  const spec = G.dailySpec(day);
+  const draw = (board, flown) => {
+    if (S.mode !== 'today') return;
+    screens.today({
+      streak: profile.streak.day >= day - 1 ? profile.streak.count : 0,
+      goals: goalView(false),
+      daily: { place: PLACE_NAMES[spec.mapId], rivals: spec.rivals, skill: spec.skill, twist: spec.twist, best: profile.daily.day === day ? profile.daily.best : 0, board, flown, canFly: S.alone },
+      onDaily: startDaily,
+      onBack: closeMenu,
+    });
+  };
+  draw([], 0);
+  const [board, flown] = await Promise.all([dailyBoard(day), dailyFlown()]);
+  draw(board, flown);
+}
+
+const aviaryView = { tab: 'birds', portraits: null };
+
+function openAviary(back) {
+  audio.start();
+  leaveForMenu(back);
+  setMode('aviary');
+  if (!aviaryView.portraits) aviaryView.portraits = speciesPortraits();
+  drawAviary();
+}
+function drawAviary() {
+  if (S.mode !== 'aviary') return;
+  screens.aviary({
+    profile,
+    level: G.levelOf(profile.xp).level,
+    tab: aviaryView.tab,
+    portraits: aviaryView.portraits,
+    onTab: (t) => {
+      aviaryView.tab = t;
+      drawAviary();
+    },
+    onEquip: (kind, id) => {
+      equip(kind, id);
+      audio.chime(kind === 'species' ? 0 : kind === 'trail' ? 1 : 2);
+      drawAviary();
+    },
+    onBack: closeMenu,
   });
 }
 
@@ -1066,7 +1483,7 @@ function pauseMig() {
   });
 }
 
-/** Someone came or went: Migration is only for a player alone in the room. */
+/** Someone came or went: Migration and the Daily Sunset are only for a player alone in the room. */
 function onPlayersChanged() {
   const alone = net.othersOnline() === 0;
   if (alone === S.alone) return;
@@ -1083,7 +1500,7 @@ function onPlayersChanged() {
     screens.notice({ text: `${name} flew in`, button: 'Fly', onClick: backToSky });
   } else if (S.mode === 'sky' && S.nightShown && screens.current === 'night') {
     showNight(net.sky);
-  }
+  } else if (S.mode === 'today') openToday(S.back);
 }
 
 function onKey(k) {
@@ -1094,8 +1511,7 @@ function onKey(k) {
 // ------------------------------------------------------------------ the title's wire birds
 
 const TITLE_BIRDS = [];
-function seatTitleBirds() {
-  const map = getMap('saltmere');
+function seatTitleBirds(map) {
   const w = map.title.wire;
   TITLE_BIRDS.length = 0;
   for (let k = 0; k < 16; k++) {
@@ -1104,7 +1520,7 @@ function seatTitleBirds() {
     TITLE_BIRDS.push({ x: p[0], y: p[1] + 0.22, z: p[2], vx: 0, vy: 0, vz: 0, yaw: Math.PI + ((k * 13) % 5) * 0.08 - 0.16, phase: k * 1.7, flying: false, t: 0 });
   }
 }
-seatTitleBirds();
+seatTitleBirds(getMap(TEST_MAP));
 
 function launchTitleBirds() {
   TITLE_BIRDS.forEach((b, k) => {
@@ -1135,7 +1551,10 @@ function stepTitleBirds(dt) {
 const tagPool = Array.from({ length: 13 }, () => ({}));
 const rowPool = Array.from({ length: 7 }, () => ({}));
 const labelPool = Array.from({ length: 6 }, () => ({}));
-const ptrPool = Array.from({ length: 3 }, () => ({}));
+const ptrPool = Array.from({ length: 6 }, () => ({}));
+const rarePool = Array.from({ length: 6 }, () => ({}));
+const rareTags = [];
+const chorusS = { chain: 0, left: 0 };
 const tags = [];
 const rows = [];
 const labels = [];
@@ -1143,8 +1562,8 @@ const pointers = [];
 const sorted = [];
 const byN = (a, b) => b.n - a.n || (a.id < b.id ? -1 : 1);
 const lay = { clockX: 0, top: 8, right: 0, boardW: 240, boardTop: 8, hintY: 200 };
-const hs = { ring: null, tags, labels, clock: null, board: rows, pointers, layout: lay, why: true };
-const ring = { x: 0, y: 0, r: 24, squash: 0.45, stamina: 1 };
+const hs = { ring: null, tags, labels, clock: null, board: rows, pointers, layout: lay, why: true, rares: rareTags, chorus: null };
+const ring = { x: 0, y: 0, r: 24, squash: 0.45, stamina: 1, wind: 0 };
 const clockS = { share: 0, left: 180, sunColor: '#FFE6B0', label: '' };
 
 function reserved() {
@@ -1173,7 +1592,7 @@ function layout() {
   lay.hintY = Math.max(h * 0.3, narrow ? lay.boardTop + 4 * 30 + 36 : 140);
 }
 
-function pointerTo(x, y, z, kind, slot, n, danger) {
+function pointerTo(x, y, z, kind, slot, n, danger, color) {
   if (pointers.length >= ptrPool.length) return;
   project(x, y, z, pb);
   const w = view.width;
@@ -1196,11 +1615,15 @@ function pointerTo(x, y, z, kind, slot, n, danger) {
   const p = ptrPool[pointers.length];
   p.x = w / 2 + dx * k;
   p.y = h / 2 + dy * k;
+  // never on the board in the top right corner
+  const boardBottom = lay.boardTop + 12 + Math.max(rows.length, lay.rows) * 30 + 24;
+  if (p.x > lay.right - lay.boardW - 40 && p.y < boardBottom) p.y = boardBottom;
   p.angle = Math.atan2(dy, dx);
   p.kind = kind;
   p.slot = slot;
   p.n = n;
   p.danger = danger;
+  p.color = color;
   pointers.push(p);
 }
 
@@ -1210,8 +1633,10 @@ function buildHud(sky) {
   rows.length = 0;
   labels.length = 0;
   pointers.length = 0;
+  rareTags.length = 0;
   hs.ring = null;
   hs.clock = null;
+  hs.chorus = null;
   const playing = me.L && (S.mode === 'sky' || S.mode === 'mig' || S.mode === 'takeoff');
   if (!playing) return;
   const id = myId();
@@ -1301,8 +1726,39 @@ function buildHud(sky) {
     ring.y = pb.y;
     ring.r = narrow ? 20 : 26;
     ring.stamina = L.stamina / FLIGHT.stamina;
+    ring.wind = L.wind ? clamp((tricks.tailwindUntil - sky.clock) / TRICK_WIND, 0, 1) : 0;
     hs.ring = ring;
   }
+  // the chorus: how far it's got, and how long it waits for the next gather
+  if (tricks.chain > 0) {
+    chorusS.chain = tricks.chain;
+    chorusS.left = clamp(1 - (sky.clock - tricks.lastJoin) / CHORUS_GAP, 0, 1);
+    hs.chorus = chorusS;
+  }
+  // rare birds still on their landmarks: a name over each one in view, a pointer to the nearest one out of it
+  let nearest = null;
+  let nearD = Infinity;
+  for (const r of sky.rares ?? []) {
+    if (r.by) continue;
+    const sp = SPECIES[r.species];
+    const color = RARITY_COLORS[sp.rarity];
+    project(r.x, r.y + 2.5, r.z, pb);
+    const d = Math.hypot(r.x - L.x, r.z - L.z);
+    const inside = !pb.behind && pb.x > 0 && pb.x < view.width && pb.y > 0 && pb.y < view.height;
+    if (inside && rareTags.length < rarePool.length) {
+      const t = rarePool[rareTags.length];
+      t.x = pb.x;
+      t.y = pb.y;
+      t.name = sp.name;
+      t.color = color;
+      t.alpha = d > 260 ? clamp(1 - (d - 260) / 60, 0, 1) : 1;
+      rareTags.push(t);
+    } else if (!inside && d < nearD) {
+      nearD = d;
+      nearest = r;
+    }
+  }
+  if (nearest) pointerTo(nearest.x, nearest.y, nearest.z, 'rare', 0, 0, false, RARITY_COLORS[SPECIES[nearest.species].rarity]);
   // edge pointers: the biggest rival and the hawk hunting me
   const big = sorted[0]?.id === id ? sorted[1] : sorted[0];
   if (big && big.n > 0) pointerTo(big.puffs[0].x, big.puffs[0].y, big.puffs[0].z, 'flock', big.slot, big.n, big.n > myN * 1.15);
@@ -1314,7 +1770,7 @@ function buildHud(sky) {
 
 // ------------------------------------------------------------------ drawing
 
-const leaders = Array.from({ length: 48 }, () => ({ x: 0, y: 0, z: 0, yaw: 0, pitch: 0, bank: 0, color: new THREE.Color(), scale: 4.4, flap: 11, phase: 0, species: 0, flair: 0 }));
+const leaders = Array.from({ length: 120 }, () => ({ x: 0, y: 0, z: 0, yaw: 0, pitch: 0, bank: 0, color: new THREE.Color(), scale: 4.4, flap: 11, phase: 0, species: 0, flair: 0 }));
 const leaderList = [];
 const hawkAt = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0, bank: 0, folded: false, visible: false };
 const hawkDraw = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0, bank: 0, scale: 9, flap: 7, fold: 0, phase: 0 };
@@ -1343,7 +1799,7 @@ function addLeader(x, y, z, yaw, color, o = {}) {
 
 /** A flock's look: its lead bird's species and its flair (mine from the profile, others' from what their page says). */
 function lookOf(f) {
-  if (f.id === myId()) return { species: equipped.species, flair: equipped.flair, trail: equipped.trail };
+  if (f.id === myId()) return equipped;
   return f.look ?? DEFAULT_LOOK;
 }
 const DEFAULT_LOOK = { species: 0, flair: 0, trail: 0 };
@@ -1370,10 +1826,11 @@ function drawLeaders(sky) {
     const L = mine ? me.L : f.leader;
     const pitch = mine ? Math.atan2(L.vy, Math.max(4, L.speed)) * 0.8 : 0;
     addLeader(L.x, L.y, L.z, L.yaw, color, { pitch, bank: L.bank ?? 0, flap: L.boosting ? 17 : 11, species: look.species, flair: look.flair });
-    if (mine) fx.addRibbons(me.trail, me.t, L, color, look.trail);
-    else fx.addRibbons(f.trail, sky.clock, L, color, look.trail);
+    if (mine) fx.addRibbons(me.trail, me.t, L, color, look.trail, LEAD_SCALE);
+    else fx.addRibbons(f.trail, sky.clock, L, color, look.trail, LEAD_SCALE);
   }
   fx.endRibbons();
+  drawRares(sky);
   // the hawk
   fx.hawkPose(sky, hawkAt);
   if (hawkAt.visible) {
@@ -1396,6 +1853,42 @@ function drawLeaders(sky) {
   birds.setLeaders(leaderList);
 }
 
+/** Rare birds on their landmarks: the bird (looking about), its little flock wheeling round it, a pillar of light over it. */
+const rareLights = [];
+const rareLightPool = [0, 1, 2].map(() => ({ x: 0, y: 0, z: 0, color: '#fff' }));
+function drawRares(sky) {
+  rareLights.length = 0;
+  if (sky.phase !== 'day' || sky.parked) {
+    fx.setRares(rareLights);
+    return;
+  }
+  const t = performance.now() / 1000;
+  let k = 0;
+  for (const r of sky.rares ?? []) {
+    k++;
+    if (r.by) continue;
+    const sp = SPECIES[r.species];
+    const yaw = k * 2.1 + Math.sin(t * 0.4 + k) * 1.2;
+    addLeader(r.x, r.y + 0.3, r.z, yaw, RARE_RIM[sp.rarity], { flap: -1, species: r.species, scale: 3.6 + sp.rarity * 0.5, flair: sp.rarity === 2 ? 2 : 0 });
+    const n = Math.min(10, Math.ceil(r.n / 5));
+    for (let i = 0; i < n; i++) {
+      const a = t * (0.9 + (i % 3) * 0.15) + (i / n) * Math.PI * 2;
+      const rr = 4.5 + (i % 3) * 1.2;
+      addLeader(r.x + Math.cos(a) * rr, r.y + 3 + Math.sin(a * 2 + i) * 0.8, r.z + Math.sin(a) * rr, a + Math.PI / 2, ASH, { scale: 1.9, flap: 13, phase: i * 1.3, species: -1, bank: -0.45 });
+    }
+    if (rareLights.length < rareLightPool.length) {
+      const p = rareLightPool[rareLights.length];
+      p.x = r.x;
+      p.y = r.y;
+      p.z = r.z;
+      p.color = RARITY_COLORS[sp.rarity];
+      rareLights.push(p);
+    }
+  }
+  fx.setRares(rareLights);
+}
+const RARE_RIM = [new THREE.Color('#FFF1DC'), new THREE.Color('#FFB547'), new THREE.Color('#E8758F')];
+
 function draw(dt) {
   const sky = activeSky();
   updateCamera(dt, sky);
@@ -1407,14 +1900,15 @@ function draw(dt) {
   view.setLight(s, focus, t);
   world.update(view.light, t, dt, view);
   birds.setLight(view.light, scene);
-  // the birds: a moment of slow motion on a hawk strike
-  const bdt = S.slowmo > 0 ? dt * 0.3 : dt;
-  S.slowmo = Math.max(0, S.slowmo - dt);
+  // the birds: they hold still for a beat on a big hit, and slow on a hawk strike or a rare bird
+  const bdt = S.hitstop > 0 ? 0 : S.slowmo > 0 ? dt * 0.3 : dt;
+  S.hitstop = Math.max(0, S.hitstop - dt);
+  if (S.hitstop <= 0) S.slowmo = Math.max(0, S.slowmo - dt);
   const own = me.L && !(sky.phase === 'night') ? me.puffs : null;
   birds.update(bdt, sky, camera, myId(), own);
   drawLeaders(sky);
   fx.setStormX(sky.storm ? sky.stormFront() : null);
-  fx.update(dt, view.light, scene);
+  fx.update(dt, view.light, scene, camera, view.height * view.pixelRatio);
   view.render();
   // the HUD
   buildHud(sky);
@@ -1445,7 +1939,9 @@ function tick(dt) {
     const T = net.sky.map.title.spawn;
     titleLeader = newLeader(T.x, T.z, T.yaw, net.sky.map);
   }
-  net.update(dt, { st: status(), leader: me.L && !S.mig ? me.L : titleLeader, nw: profile.sunsets === 0 });
+  net.update(dt, { st: status(), leader: me.L && !S.mig ? me.L : titleLeader, nw: profile.sunsets === 0, look: equipped });
+  // the shared sky turned to its next place at dawn
+  if (!S.mig && world.map.id !== net.sky.map.id) followPlace();
   if ((net.othersOnline() === 0) !== S.alone) onPlayersChanged();
   if (S.mig) migTick(dt);
   // nights
@@ -1463,6 +1959,7 @@ function tick(dt) {
   if (flying()) {
     hintsFor(shown, dt);
     gatherPulse(shown);
+    if (shown.phase === 'day') watchGoals(dt);
   } else fx.setPulse(null);
   // sound
   const L = me.L;
@@ -1569,7 +2066,8 @@ async function boot() {
     sdk(() => ow.on('reserved', () => layout()));
   }
   profile = await loadProfile();
-  if (S.mode === 'title') screens.title({ best: profile.best, onFly: fly });
+  syncLook();
+  if (S.mode === 'title') titleScreen();
   const ok = await joinRoom();
   await fontsReady;
   if (!ok) {
@@ -1589,7 +2087,27 @@ async function boot() {
   if (AUTO) {
     const skill = params.get('skill');
     if (SKILLS.includes(skill)) net.setSkill(skill);
-    window.__bird = { fly, ff, jump, state: () => ({ mode: S.mode, n: me.n, time: net.sky.time, phase: net.sky.phase }) };
+    window.__bird = {
+      fly,
+      ff,
+      jump,
+      state: () => ({ mode: S.mode, n: me.n, time: net.sky.time, phase: net.sky.phase, map: net.sky.map.id, song: tricks.song, level: G.levelOf(profile.xp).level }),
+      // for store art and checks: open a screen, or stand in for a player who has flown a while
+      title: showTitle,
+      aviary: (tab = 'birds') => {
+        aviaryView.tab = tab;
+        openAviary('title');
+      },
+      today: () => openToday('title'),
+      daily: startDaily,
+      place: startPlace,
+      give: ({ xp, species, equip: e } = {}) => {
+        if (xp) profile.xp = xp;
+        for (const id of species ?? []) profile.aviary[id] = (profile.aviary[id] ?? 0) + 1;
+        if (e) Object.assign(profile.equip, e);
+        syncLook();
+      },
+    };
     if (params.get('fly') !== '0') setTimeout(() => S.mode === 'title' && fly(), 600);
   }
 }

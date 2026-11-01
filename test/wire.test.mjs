@@ -13,6 +13,18 @@ test('presence round trip', () => {
   assert.equal(r.boosting, true);
   assert.equal(r.nw, true);
   assert.equal(r.rv.length, 1);
+  assert.equal(r.look, null);
+});
+
+test('a look in presence: species, trail and flair in range, anything else dropped', () => {
+  const L = { x: 0, y: 8, z: 0, yaw: 0, boosting: false };
+  const p = W.writePresence(L, 'fly', 1, { look: { species: 10, trail: 3, flair: 2 } });
+  assert.deepEqual(W.readPresence(JSON.parse(JSON.stringify(p))).look, { species: 10, trail: 3, flair: 2 });
+  for (const lk of [[99, 0, 0], [0, 8, 0], [0, 0, 7], [1.5, 0, 0], ['x', 0, 0], [0, 0], {}, 'abc', [-1, 0, 0]]) {
+    const r = W.readPresence({ ...p, lk });
+    assert.ok(r, 'the rest of the presence still counts');
+    assert.equal(r.look, null, JSON.stringify(lk));
+  }
 });
 
 test('garbage presence is turned away', () => {
@@ -119,4 +131,13 @@ test('a rare catch and where a gather came from survive packing', () => {
   const plain = W.unpackEvent(W.packEvent({ type: 'join', id: 'r1', k: 3, perches: [1, 2, 3], x: 0, z: 0 }));
   assert.equal(plain.cloud, undefined);
   assert.equal(plain.wheel, undefined);
+});
+
+test('a steal says what its victim has left, so every page sees the same Scatter', () => {
+  const e = { type: 'steal', from: 'r1', to: 'p1', k: 3, x: 0, y: 9, z: 0, lw: 30, ll: 2, pass: 3, bigger: false, left: 0 };
+  assert.equal(W.unpackEvent(W.packEvent(e)).left, 0);
+  assert.equal(W.unpackEvent(W.packEvent({ ...e, left: undefined })).left, undefined);
+  const odd = W.packEvent(e);
+  odd[11] = 'x';
+  assert.equal(W.unpackEvent(odd).left, undefined, 'a bad count is dropped, the steal kept');
 });

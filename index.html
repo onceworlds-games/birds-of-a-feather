@@ -488,6 +488,567 @@
       .notice-box .wireset {
         margin-top: 4vh;
       }
+
+      /* a sign's small count, and a sign that can't be pressed */
+      .sign .count {
+        font: 900 20px/1 var(--num);
+        color: var(--terracotta);
+      }
+      .sign:disabled {
+        background: #b9ad9f;
+        cursor: default;
+        animation: none;
+      }
+
+      /* the title: Today and the Aviary under Fly, then the level and the streak */
+      .title-more {
+        display: flex;
+        gap: 14px;
+        margin-top: 22px;
+      }
+      .standing {
+        margin-top: 18px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+      .streak {
+        font: 900 26px var(--num);
+        color: var(--gold);
+        -webkit-text-stroke: 6px var(--ink);
+        paint-order: stroke fill;
+      }
+
+      /* the level and its bar */
+      .lvl {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .lvl-n {
+        font: 900 26px/1 var(--num);
+        color: var(--cream);
+        -webkit-text-stroke: 6px var(--ink);
+        paint-order: stroke fill;
+        white-space: nowrap;
+      }
+      .lvl-bar {
+        position: relative;
+        width: 170px;
+        height: 14px;
+        border: 3px solid var(--ink);
+        border-radius: 3px;
+        background: rgba(255, 241, 220, 0.85);
+        box-shadow: 0 3px 0 var(--ink);
+        overflow: hidden;
+      }
+      .lvl-bar i {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        background: var(--gold);
+        border-right: 2px solid var(--ink);
+      }
+      .lvl.up .lvl-n {
+        animation: pop 0.5s ease-out;
+        color: var(--gold);
+      }
+
+      /* the night's tally */
+      .night-mid {
+        margin-top: 2vh;
+        display: flex;
+        gap: 34px;
+        align-items: flex-start;
+        justify-content: center;
+        padding: 0 16px;
+        flex-wrap: wrap;
+      }
+      .tally {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        min-width: min(330px, 86vw);
+      }
+      .tally-lines {
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+      }
+      .tl {
+        display: flex;
+        justify-content: space-between;
+        gap: 18px;
+        font: 800 19px/1.15 var(--txt);
+        color: var(--cream);
+        -webkit-text-stroke: 5px var(--ink);
+        paint-order: stroke fill;
+        opacity: 0;
+        transform: translateX(-12px);
+        transition:
+          opacity 0.2s,
+          transform 0.25s ease-out;
+      }
+      .tl.in {
+        opacity: 1;
+        transform: none;
+      }
+      .tl-song {
+        font: 900 22px/1 var(--num);
+        color: var(--gold);
+      }
+      .tl-rare .tl-label {
+        color: var(--gold);
+      }
+      .tally .lvl {
+        margin-top: 10px;
+      }
+      .tally .lvl-bar {
+        flex: 1;
+      }
+      .tally-total {
+        font: 900 24px/1 var(--num);
+        color: var(--gold);
+        -webkit-text-stroke: 6px var(--ink);
+        paint-order: stroke fill;
+        min-width: 56px;
+        text-align: right;
+      }
+      .unlocks {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-top: 8px;
+      }
+      .unlock {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        animation: pop 0.45s ease-out;
+      }
+      .unlock-text {
+        font: 800 20px var(--txt);
+        color: var(--gold);
+        -webkit-text-stroke: 5px var(--ink);
+        paint-order: stroke fill;
+      }
+      .unlock .sign.small {
+        min-height: 44px;
+        min-width: 72px;
+      }
+
+      /* the day's goals */
+      .goals-mini,
+      .goals-full {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .dgoal {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font: 800 19px/1.15 var(--txt);
+        color: var(--cream);
+        -webkit-text-stroke: 5px var(--ink);
+        paint-order: stroke fill;
+      }
+      .dgoal-mark {
+        flex: none;
+        width: 22px;
+        height: 22px;
+        border: 3px solid var(--ink);
+        border-radius: 3px;
+        background: rgba(255, 241, 220, 0.85);
+        display: grid;
+        place-items: center;
+      }
+      .dgoal.done .dgoal-mark {
+        background: var(--gold);
+      }
+      .dgoal .tick {
+        width: 18px;
+        height: 18px;
+      }
+      .tick path {
+        fill: none;
+        stroke: var(--ink);
+        stroke-width: 3.5px;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .dgoal.done .dgoal-text {
+        color: var(--gold);
+      }
+      .dgoal-n {
+        margin-left: auto;
+        padding-left: 12px;
+        font: 900 21px/1 var(--num);
+      }
+      .goals-full .dgoal {
+        font-size: 22px;
+        gap: 12px;
+      }
+      .goals-full .dgoal-mark {
+        width: 28px;
+        height: 28px;
+      }
+
+      /* Today */
+      .today-box,
+      .aviary-box {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 0 16px;
+      }
+      .today-box .route-title {
+        margin-top: max(84px, 9vh);
+      }
+      .today-cols {
+        margin-top: 3vh;
+        display: flex;
+        gap: 48px;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-items: flex-start;
+      }
+      .today-col {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        min-width: min(340px, 90vw);
+      }
+      .streak-big {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+      }
+      .streak-n {
+        font: 900 64px/0.9 var(--num);
+        color: var(--gold);
+        -webkit-text-stroke: 9px var(--ink);
+        paint-order: stroke fill;
+      }
+      .streak-l,
+      .daily-sub {
+        font: 800 22px var(--txt);
+        color: var(--cream);
+        -webkit-text-stroke: 5px var(--ink);
+        paint-order: stroke fill;
+      }
+      .daily-name {
+        font: 800 34px/1 var(--txt);
+        color: var(--cream);
+        -webkit-text-stroke: 7px var(--ink);
+        paint-order: stroke fill;
+      }
+      .board {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: min(300px, 86vw);
+      }
+      .brow {
+        display: flex;
+        align-items: baseline;
+        gap: 12px;
+        font: 800 19px var(--txt);
+        color: var(--cream);
+        -webkit-text-stroke: 5px var(--ink);
+        paint-order: stroke fill;
+      }
+      .brow.me {
+        color: var(--gold);
+      }
+      .brow-k {
+        width: 22px;
+        font: 900 22px var(--num);
+      }
+      .brow-name {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .brow-n {
+        font: 900 22px var(--num);
+      }
+      .today-box .wireset,
+      .aviary-box .wireset {
+        margin-top: auto;
+        margin-bottom: 4vh;
+      }
+
+      /* the Aviary */
+      .aviary-head {
+        margin-top: max(60px, 6vh);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 10px 34px;
+      }
+      .aviary-name {
+        display: flex;
+        align-items: baseline;
+        gap: 14px;
+      }
+      .aviary-head .route-title {
+        font-size: clamp(36px, 5vw, 56px);
+      }
+      .aviary-count {
+        font: 900 28px var(--num);
+        color: var(--gold);
+        -webkit-text-stroke: 6px var(--ink);
+        paint-order: stroke fill;
+      }
+      .tabs {
+        display: flex;
+        gap: 10px;
+      }
+      .aviary-grid {
+        pointer-events: auto;
+        margin-top: 16px;
+        display: grid;
+        grid-template-columns: repeat(8, 112px);
+        gap: 10px;
+        overflow-y: auto;
+        touch-action: pan-y;
+        padding: 4px 4px 10px;
+        max-height: calc(100% - 240px);
+      }
+      .aviary-grid.trails,
+      .aviary-grid.flair {
+        grid-template-columns: repeat(4, 150px);
+      }
+      .tile {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+        padding: 6px 6px 8px;
+        border: 3px solid var(--ink);
+        border-radius: 3px;
+        background: var(--cream);
+        color: var(--ink);
+        box-shadow: 0 4px 0 var(--ink);
+        cursor: pointer;
+        font-family: var(--txt);
+      }
+      .tile:active {
+        transform: translateY(3px);
+        box-shadow: 0 1px 0 var(--ink);
+      }
+      .tile.rare {
+        background: #ffe2b0;
+      }
+      .tile.legendary {
+        background: #f6c6d2;
+      }
+      .tile.unknown {
+        background: #b9ad9f;
+        cursor: default;
+      }
+      .tile.on {
+        outline: 4px solid var(--gold);
+        outline-offset: 2px;
+      }
+      .tile .pic {
+        width: 88px;
+        height: 88px;
+        margin: -4px 0 -6px;
+      }
+      .tile-count {
+        position: absolute;
+        right: 6px;
+        top: 4px;
+        font: 900 18px var(--num);
+        color: var(--terracotta);
+      }
+      .daily-best {
+        font: 900 30px var(--num);
+        color: var(--gold);
+        -webkit-text-stroke: 6px var(--ink);
+        paint-order: stroke fill;
+      }
+      .tile .pic.blank {
+        display: block;
+      }
+      .tile-name {
+        font: 800 16px/1.05 var(--txt);
+        text-align: center;
+        min-height: 2.1em;
+        display: flex;
+        align-items: center;
+      }
+      .tile.unknown .tile-name {
+        color: #4a3e48;
+      }
+      .tile-sub {
+        font: 700 16px/1 var(--txt);
+        color: #5b4a52;
+        min-height: 1em;
+      }
+      .tile.item {
+        min-height: 128px;
+        justify-content: center;
+      }
+      .swatch {
+        width: 120px;
+        height: 34px;
+        border: 3px solid var(--ink);
+        border-radius: 3px;
+      }
+      .trails-0 {
+        background: linear-gradient(90deg, #ffb547 0 30%, transparent 30% 70%, #ffb547 70%);
+      }
+      .trails-1 {
+        background: radial-gradient(circle at 20% 40%, #f7a8be 0 5px, transparent 6px), radial-gradient(circle at 55% 65%, #fff0f2 0 5px, transparent 6px), radial-gradient(circle at 80% 35%, #f7a8be 0 5px, transparent 6px), #f3d6dc;
+      }
+      .trails-2 {
+        background: radial-gradient(circle at 25% 50%, #fff1c8 0 3px, transparent 4px), radial-gradient(circle at 60% 30%, #ffc24a 0 3px, transparent 4px), radial-gradient(circle at 80% 70%, #ffc24a 0 3px, transparent 4px), #3a2f44;
+      }
+      .trails-3 {
+        background: radial-gradient(circle at 25% 50%, #ffa040 0 7px, transparent 10px), radial-gradient(circle at 70% 45%, #ffa040 0 7px, transparent 10px), #2e2638;
+      }
+      .trails-4 {
+        background: linear-gradient(90deg, #fff 0%, #ffc24a 40%, rgba(255, 181, 71, 0) 100%), #2e2638;
+      }
+      .trails-5 {
+        background: linear-gradient(180deg, #e8453c 0 25%, #f4c82a 25% 50%, #2ec2b4 50% 75%, #6a4ad8 75%);
+      }
+      .trails-6 {
+        background: repeating-linear-gradient(120deg, #fff1dc 0 8px, #c0563a 8px 12px);
+      }
+      .trails-7 {
+        background: linear-gradient(90deg, #2ee8a0, #2ec2e8, #8a5ae8, #2ee8a0);
+      }
+      .flair-0 {
+        background: #6b5a9a;
+      }
+      .flair-1 {
+        background: linear-gradient(90deg, #3a3550, #4ab0a0, #6b5a9a, #c06aa0);
+      }
+      .flair-2 {
+        background: radial-gradient(ellipse at 50% 50%, #ffd27a, #c0563a);
+      }
+      .flair-5 {
+        background: linear-gradient(90deg, #2e2a3e 0 60%, #ffc24a 60%);
+      }
+      .flair-3 {
+        background: radial-gradient(circle at 20% 40%, #fff 0 2px, transparent 3px), radial-gradient(circle at 60% 60%, #fff 0 2px, transparent 3px), radial-gradient(circle at 85% 30%, #fff 0 2px, transparent 3px), #2e2a3e;
+      }
+      .flair-4 {
+        background: radial-gradient(circle at 30% 50%, #ffd060 0 4px, transparent 6px), radial-gradient(circle at 70% 50%, #ffd060 0 4px, transparent 6px), #231a2e;
+      }
+      .flair-6 {
+        background: linear-gradient(90deg, #2e2a3e, #f06a28, #2e2a3e);
+      }
+      .unknown .swatch {
+        filter: grayscale(1) brightness(0.7);
+      }
+
+      /* the Daily Sunset's result */
+      .result-box.daily .board {
+        margin-top: 10px;
+      }
+      .result-box .tally {
+        margin-top: 14px;
+      }
+
+      @media (max-width: 1000px) {
+        .aviary-grid {
+          grid-template-columns: repeat(6, 104px);
+        }
+      }
+      @media (max-width: 720px) {
+        .aviary-grid {
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          width: 100%;
+          gap: 8px;
+        }
+        .aviary-grid.trails,
+        .aviary-grid.flair {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .tile .pic {
+          width: 100%;
+          height: auto;
+          aspect-ratio: 1;
+        }
+        .swatch {
+          width: 100%;
+        }
+        .night-mid {
+          gap: 12px;
+        }
+      }
+      /* short screens (phones held sideways): smaller, in two columns where it helps */
+      @media (max-height: 560px) {
+        .night-lines {
+          margin-top: 54px;
+        }
+        .line {
+          font-size: 19px;
+        }
+        .night-mid {
+          margin-top: 6px;
+          flex-wrap: nowrap;
+        }
+        .tl,
+        .dgoal {
+          font-size: 16px;
+        }
+        .tl-song {
+          font-size: 18px;
+        }
+        .night-box .bottom {
+          margin-bottom: 8px;
+        }
+        .night-box .signs {
+          padding-top: 36px;
+        }
+        .night-box .sign {
+          min-height: 48px;
+        }
+        .dawn {
+          margin-top: 4px;
+          font-size: 24px;
+          min-height: 28px;
+        }
+        .skill-row {
+          margin-top: 8px;
+        }
+        .today-box .route-title,
+        .aviary-head {
+          margin-top: 54px;
+        }
+        .route-title {
+          font-size: 38px;
+        }
+        .aviary-grid {
+          max-height: calc(100% - 230px);
+        }
+        .title-box {
+          top: 8%;
+        }
+        .game-name {
+          font-size: clamp(44px, 9vh, 80px);
+        }
+        .title-more {
+          margin-top: 12px;
+        }
+        .wireset {
+          margin-top: 1vh;
+        }
+      }
     </style>
   </head>
   <body>

@@ -153,6 +153,7 @@ export function applyGoals(daily, day, stats) {
     daily.done = [false, false, false];
     daily.best = 0;
     daily.played = 0;
+    daily.flew = false;
   }
   const goals = goalsFor(day);
   let finished = 0;
@@ -193,7 +194,7 @@ export const PROFILE0 = () => ({
   aviary: {}, // species id → how many caught
   equip: { species: 'starling', trail: 0, flair: 0 },
   streak: { day: -1, count: 0, best: 0 },
-  daily: { day: -1, progress: [0, 0, 0], done: [false, false, false], best: 0, played: 0 },
+  daily: { day: -1, progress: [0, 0, 0], done: [false, false, false], best: 0, played: 0, flew: false }, // best, flew: the Daily Sunset
   tricks: {},
 });
 
@@ -224,8 +225,9 @@ export function cleanProfile(p) {
     day: day(d.day),
     progress: [0, 1, 2].map((i) => count(Array.isArray(d.progress) ? d.progress[i] : 0)),
     done: [0, 1, 2].map((i) => Array.isArray(d.done) && d.done[i] === true),
-    best: count(d.best),
+    best: count(d.best, 5000),
     played: count(d.played, 1000),
+    flew: d.flew === true,
   };
   if (p.tricks && typeof p.tricks === 'object') for (const [k, v] of Object.entries(p.tricks).slice(0, 20)) if (/^[a-zA-Z]{1,12}$/.test(k)) o.tricks[k] = count(v);
   return o;

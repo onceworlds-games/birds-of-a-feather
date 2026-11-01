@@ -101,3 +101,30 @@ export function placeSky(index, seed, id = 'pme', name = 'You') {
   sky.drainEvents();
   return sky;
 }
+
+/** The Daily Sunset: a little longer than a Migration place. */
+export const DAILY_DAY = 150;
+
+/**
+ * The Daily Sunset's sky for a day's spec (progress.js dailySpec): the same place, twist, rivals, birds and hawk for
+ * everyone who flies it that day; only the flying differs.
+ */
+export function dailySky(spec, id = 'pme', name = 'You') {
+  const sky = new Sky({
+    mapId: spec.mapId,
+    seed: spec.seed,
+    day: DAILY_DAY,
+    loop: false,
+    autoRivals: false,
+    wild: 1200,
+    hawkFirst: 30,
+    hawkEvery: spec.hawkEvery,
+    hawkLateEvery: Math.min(22, spec.hawkEvery),
+    twist: spec.twist,
+    skill: spec.skill,
+  });
+  sky.addFlock(id, { kind: 'player', name, slot: 0, local: true, spawn: sky.map.spawns[spec.seed % sky.map.spawns.length] });
+  for (let k = 0; k < spec.rivals; k++) sky.addRival({ personality: PERSONALITY_ORDER[k % PERSONALITY_ORDER.length], skill: spec.skill });
+  sky.drainEvents();
+  return sky;
+}

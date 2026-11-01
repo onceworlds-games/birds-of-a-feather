@@ -205,6 +205,10 @@ test('the shared sky turns to the next place every dawn', () => {
     for (const f of sky.flocks.values()) assert.ok(Math.abs(f.leader.x) < 330 && Math.abs(f.leader.z) < 330);
   }
   assert.deepEqual(seen, [...ROTATION, ROTATION[0]]);
+  // a parked sky wakes where it was: the place the title showed
+  sky.park();
+  sky.unpark();
+  assert.equal(sky.map.id, ROTATION[0]);
 });
 
 test('a parked sky stops its clock and wakes with a fresh dawn', () => {

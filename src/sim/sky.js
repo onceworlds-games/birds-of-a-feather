@@ -345,11 +345,11 @@ export class Sky {
     this.resetHawk();
   }
 
-  /** A parked sky wakes with a fresh dawn. */
+  /** A parked sky wakes with a fresh dawn, in the place the title has been showing. */
   unpark() {
     if (!this.parked) return;
     this.parked = false;
-    this.dawn();
+    this.dawn(false);
   }
 
   shape(f) {
@@ -571,6 +571,7 @@ export class Sky {
           ll: Math.round(res.loserLocal),
           pass: pair.total,
           bigger: startL > startW,
+          left: Lo.n,
         });
       }
     }
@@ -731,9 +732,10 @@ export class Sky {
     this.events.push({ type: 'sundown', standings: this.standings });
   }
 
-  dawn() {
+  /** A new sunset; after a night (`turn`), the shared sky moves on to the next place. */
+  dawn(turn = true) {
     this.rid += 1;
-    if (this.opts.rotate) this.setMap(ROTATION[(ROTATION.indexOf(this.opts.mapId) + 1) % ROTATION.length]);
+    if (turn && this.opts.rotate) this.setMap(ROTATION[(ROTATION.indexOf(this.opts.mapId) + 1) % ROTATION.length]);
     this.reseed();
     this.clock = 0;
     this.time = 0;

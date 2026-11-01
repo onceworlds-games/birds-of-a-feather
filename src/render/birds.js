@@ -17,11 +17,11 @@ const WHEEL_CAP = 70;
 const CLOUD_CAP = 90;
 const STEP = 1 / 30;
 const SIZE = 1.85; // a flock bird's size (the mesh is about 0.95 u long, 1.3 u across)
-const ASH = new THREE.Color('#8D8794');
+const ASH = new THREE.Color('#6C6672');
 const INK = new THREE.Color('#231A2E');
 const LOOK_KEYS = ['back', 'belly', 'head', 'accent', 'beak'];
 const SPECIES_LOOK = SPECIES.map((sp) => ({ c: sp.c.map((h) => new THREE.Color(h)), shape: sp.shape }));
-const WILD_LOOK = { c: ['#8D8794', '#5E5866', '#7A7482', '#4E4856', '#C8A050'].map((h) => new THREE.Color(h)), shape: [1, 0, 1, 0] };
+const WILD_LOOK = { c: ['#68616F', '#8A8290', '#5A5462', '#3E3846', '#C8A050'].map((h) => new THREE.Color(h)), shape: [1, 0, 1, 0] };
 const HAWK_LOOK = { c: ['#5A3626', '#E8D4B4', '#4A2C20', '#2E1C16', '#E8B83A'].map((h) => new THREE.Color(h)), shape: [1, 0, 1, 0] };
 const FREE = 0;
 const IN_FLOCK = 1;
@@ -43,7 +43,7 @@ export class Birds {
     const geo = songbirdGeometry(lod);
     this.fly = birdLayer(geo, this.uniforms, MAX, { shadows });
     this.perch = birdLayer(geo, this.uniforms, 2400, { shadows });
-    this.lead = birdLayer(songbirdGeometry('high'), this.uniforms, 48, { lead: true, shadows });
+    this.lead = birdLayer(songbirdGeometry('high'), this.uniforms, 120, { lead: true, shadows });
     this.hawk = birdLayer(raptorGeometry(), this.uniforms, 2, { lead: true, shadows });
     for (const l of [this.fly, this.perch, this.lead, this.hawk]) scene.add(l.mesh);
     this.flairOf = new Map(); // flock id → flair index

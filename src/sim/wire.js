@@ -43,7 +43,19 @@ export function writePresence(L, st, rid, extra = {}) {
   };
   if (extra.nw) out.nw = 1;
   if (extra.rv) out.rv = extra.rv;
+  if (extra.look) out.lk = [extra.look.species, extra.look.trail, extra.look.flair];
   return out;
+}
+
+/** The most trails and flairs a look may name (the Aviary's lists: anything past them is refused). */
+export const LOOK_MAX = { trail: 7, flair: 6 };
+
+/** A look from presence: { species, trail, flair } or null. Cosmetic only: ranges are checked, unlocks can't be. */
+export function readLook(lk) {
+  if (!Array.isArray(lk) || lk.length !== 3) return null;
+  const [species, trail, flair] = lk;
+  if (!int(species, 0, SPECIES.length - 1) || !int(trail, 0, LOOK_MAX.trail) || !int(flair, 0, LOOK_MAX.flair)) return null;
+  return { species, trail, flair };
 }
 
 /** The host's rival leaders for presence: { r1: [x, y, z, hx, hz, b], ... }. */
@@ -56,7 +68,7 @@ export function writeLeaders(flocks) {
   return rv;
 }
 
-/** Someone's presence, checked: { x, y, z, yaw, boosting, st, rid, nw, rv } or null. */
+/** Someone's presence, checked: { x, y, z, yaw, boosting, st, rid, nw, rv, look } or null. */
 export function readPresence(p) {
   if (!isObj(p)) return null;
   if (!num(p.x, -WORLD, WORLD) || !num(p.y, -50, 250) || !num(p.z, -WORLD, WORLD)) return null;
@@ -73,6 +85,7 @@ export function readPresence(p) {
     rid: p.rid,
     nw: p.nw === 1,
     rv: null,
+    look: readLook(p.lk),
   };
   if (p.rv !== undefined) out.rv = readLeaders(p.rv);
   return out;
@@ -286,7 +299,7 @@ export function packEvent(e) {
     case 'rare':
       return ['r', e.id, e.species, e.k, r2(e.x), r2(e.y), r2(e.z)];
     case 'steal':
-      return ['s', e.from, e.to, e.k, r2(e.x), r2(e.y), r2(e.z), e.lw, e.ll, e.pass, e.bigger ? 1 : 0];
+      return ['s', e.from, e.to, e.k, r2(e.x), r2(e.y), r2(e.z), e.lw, e.ll, e.pass, e.bigger ? 1 : 0, e.left ?? -1];
     case 'shed':
       return ['h', e.id, e.k, r2(e.x), r2(e.y), r2(e.z), e.storm ? 1 : 0];
     case 'strike':
@@ -318,10 +331,12 @@ export function unpackEvent(a) {
       return { type: 'rare', id, species, k, x, y, z };
     }
     case 's': {
-      const [, from, to, k, x, y, z, lw, ll, pass, bigger] = a;
+      const [, from, to, k, x, y, z, lw, ll, pass, bigger, left] = a;
       if (!isFlockId(from) || !isFlockId(to) || !int(k, 1, 10000) || !P(x, y, z)) return null;
       if (!int(lw, 0, 100000) || !int(ll, 0, 100000) || !int(pass, 0, 100000)) return null;
-      return { type: 'steal', from, to, k, x, y, z, lw, ll, pass, bigger: bigger === 1 };
+      const e = { type: 'steal', from, to, k, x, y, z, lw, ll, pass, bigger: bigger === 1 };
+      if (int(left, 0, 100000)) e.left = left; // what the victim has left (a Scatter at 0)
+      return e;
     }
     case 'h': {
       const [, id, k, x, y, z, storm] = a;

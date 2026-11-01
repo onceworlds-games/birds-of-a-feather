@@ -17,6 +17,7 @@ export function newLeader(x, z, yaw, map) {
     speed: FLIGHT.speed,
     stamina: FLIGHT.stamina,
     boosting: false,
+    wind: false,
     boostTime: 0, // seconds of the current boost
     sinceBoost: 10, // seconds since the last boost ended
     lift: 0, // the thermal exit bonus, 1 → 0
@@ -44,7 +45,7 @@ export function band(map, x, z, hx, hz, inThermal) {
 }
 
 /**
- * One step. input: { turn: -1..1 (right is +), climb: -1..1 (up is +), boost: bool }. Returns events: 'thermal-in', 'ride',
+ * One step. input: { turn: -1..1 (right is +), climb: -1..1 (up is +), boost: bool, wind: bool (a Tailwind) }. Returns events: 'thermal-in', 'ride',
  * 'boost' (a boost began).
  */
 export function stepLeader(L, input, dt, map, events = null, birds = 0) {
@@ -141,7 +142,9 @@ export function stepLeader(L, input, dt, map, events = null, birds = 0) {
   }
 
   // speed
-  let target = (L.boosting ? FLIGHT.boostSpeed : FLIGHT.speed) * (1 - FLIGHT.heavySpeed * weight);
+  // a Tailwind (a trick's reward) flies at boost speed for nothing: no stamina, no shedding, full turning
+  L.wind = !!input.wind;
+  let target = (L.boosting || L.wind ? FLIGHT.boostSpeed : FLIGHT.speed) * (1 - FLIGHT.heavySpeed * weight);
   if (L.vy > 0 && L.thermal < 0) target *= 1 - FLIGHT.climbSlow * clamp(L.vy / FLIGHT.climbRate, 0, 1);
   if (L.vy < 0) target *= 1 + FLIGHT.diveFast * clamp(-L.vy / FLIGHT.diveRate, 0, 1);
   target *= 1 + THERMAL.exitBonus * L.lift;

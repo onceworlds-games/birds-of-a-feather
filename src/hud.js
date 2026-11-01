@@ -1,5 +1,6 @@
 // The 2D layer over the sky: the sun clock, the wires leaderboard, a number over every flock, the stamina ring, edge pointers,
-// floating numbers, hints and the reason a steal went the way it did. Drawn on a canvas; names are drawn as text only.
+// floating numbers, hints, the reason a steal went the way it did, tricks called out over your count with the chorus's notes
+// under it, and the names of rare birds. Drawn on a canvas; names are drawn as text only.
 
 import { SLOTS, PALETTE } from './sim/config.js';
 
@@ -99,6 +100,19 @@ export function symbolPath(ctx, kind, x, y, r) {
   }
 }
 
+const clampN = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+function starPath(ctx, x, y, r) {
+  ctx.beginPath();
+  for (let k = 0; k < 10; k++) {
+    const a = -Math.PI / 2 + (k / 10) * Math.PI * 2;
+    const rr = k % 2 ? r * 0.45 : r;
+    if (k === 0) ctx.moveTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+    else ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+  }
+  ctx.closePath();
+}
+
 /** Your tag first, then bigger flocks first (stable, so tags don't swap places frame to frame). */
 function byTagOrder(a, b) {
   if (a.me !== b.me) return a.me ? -1 : 1;
@@ -115,6 +129,7 @@ export class Hud {
     this.floats = [];
     this.whys = [];
     this.hint = { text: '', t: 0, dur: 0 };
+    this.callouts = [];
     this.pulse = 0;
     // your own count's box on screen (gains and losses float beside it, steal signs keep clear of it)
     this.mine = { x: 0, y: 0, l: 0, r: 0, t: 0, b: 0, on: false };
@@ -165,6 +180,16 @@ export class Hud {
   quiet() {
     this.whys.length = 0;
     this.floats.length = 0;
+    this.callouts.length = 0;
+  }
+
+  /**
+   * A trick called out over your count: { title, sub, song, color, size }. It pops in, rises a little and goes; newer ones
+   * sit nearest the count and push the older up.
+   */
+  addCallout(c) {
+    if (this.callouts.length >= 3) this.callouts.shift();
+    this.callouts.push({ title: c.title, sub: c.sub ?? '', song: c.song ?? 0, color: c.color ?? PALETTE.cream, size: c.size ?? 30, t: 0 });
   }
 
   /** Why a steal went one way: the two local counts at the contact point. */
@@ -216,6 +241,9 @@ export class Hud {
       for (const t of s.tags) this.drawTag(t);
     }
     if (s.labels) for (const l of s.labels) this.drawLabel(l);
+    if (s.rares) for (const r of s.rares) this.drawRare(r);
+    if (s.chorus) this.drawChorus(s.chorus);
+    this.drawCallouts(dt);
     if (s.why !== false) this.drawWhys(dt);
     if (s.clock) this.drawClock(s.clock, s.layout);
     if (s.board) this.drawBoard(s.board, s.layout);
@@ -234,6 +262,18 @@ export class Hud {
     ctx.beginPath();
     ctx.arc(0, 0, r.r, 0, Math.PI * 2);
     ctx.stroke();
+    if (r.wind > 0) {
+      // a Tailwind: a wide cream ring that runs down as it blows
+      ctx.lineWidth = 7;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = PALETTE.ink;
+      ctx.beginPath();
+      ctx.arc(0, 0, r.r + 8, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * r.wind);
+      ctx.stroke();
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = PALETTE.cream;
+      ctx.stroke();
+    }
     if (r.stamina < 0.999) {
       ctx.lineWidth = 5;
       ctx.lineCap = 'round';
@@ -519,7 +559,7 @@ export class Hud {
     ctx.lineTo(-2, 0);
     ctx.lineTo(-6, 11);
     ctx.closePath();
-    ctx.fillStyle = p.kind === 'hawk' ? PALETTE.ember : SLOTS[p.slot].hex;
+    ctx.fillStyle = p.kind === 'hawk' ? PALETTE.ember : p.kind === 'rare' ? p.color : SLOTS[p.slot].hex;
     ctx.fill();
     ctx.lineWidth = 2.5;
     ctx.strokeStyle = PALETTE.ink;
@@ -528,7 +568,110 @@ export class Hud {
     const ox = -Math.cos(p.angle) * 26;
     const oy = -Math.sin(p.angle) * 26;
     if (p.kind === 'hawk') this.drawHawkGlyph(p.x + ox, p.y + oy, 10, PALETTE.ember);
-    else this.text(String(p.n), p.x + ox, p.y + oy, 20, { font: NUM, weight: 900, color: p.danger ? PALETTE.ember : PALETTE.cream });
+    else if (p.kind === 'rare') {
+      starPath(ctx, p.x + ox, p.y + oy, 9);
+      ctx.fillStyle = p.color;
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = PALETTE.ink;
+      ctx.stroke();
+    } else this.text(String(p.n), p.x + ox, p.y + oy, 20, { font: NUM, weight: 900, color: p.danger ? PALETTE.ember : PALETTE.cream });
+  }
+
+  /** The chorus's notes under your count: one lit for each gather in quick succession, the fifth brings a Tailwind. */
+  drawChorus(c) {
+    const m = this.mine;
+    if (!m.on || c.chain < 1 || c.left <= 0) return;
+    const ctx = this.ctx;
+    const n = 5;
+    const gap = 15;
+    const x0 = m.x - ((n - 1) * gap) / 2;
+    const y = m.b + 8;
+    const a = Math.min(1, c.left * 3);
+    ctx.globalAlpha = a;
+    for (let k = 0; k < n; k++) {
+      const lit = k < c.chain;
+      const r = k === n - 1 ? 6.5 : 5;
+      ctx.beginPath();
+      ctx.arc(x0 + k * gap, y, r, 0, Math.PI * 2);
+      ctx.fillStyle = lit ? PALETTE.gold : 'rgba(255,241,220,0.35)';
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = PALETTE.ink;
+      ctx.stroke();
+    }
+    // how long the chorus waits for the next gather
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = PALETTE.ink;
+    ctx.beginPath();
+    ctx.moveTo(x0 - 4, y + 11);
+    ctx.lineTo(x0 - 4 + ((n - 1) * gap + 8) * c.left, y + 11);
+    ctx.stroke();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = PALETTE.gold;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  drawCallouts(dt) {
+    let w = 0;
+    for (const c of this.callouts) {
+      c.t += dt;
+      if (c.t < 1.7) this.callouts[w++] = c;
+    }
+    this.callouts.length = w;
+    if (!w) return;
+    const m = this.mine;
+    const ctx = this.ctx;
+    const ax = clampN(m.on ? m.x : this.w / 2, 140, this.w - 140);
+    let y = m.on ? m.t - 30 : this.h * 0.36;
+    for (let i = this.callouts.length - 1; i >= 0; i--) {
+      const c = this.callouts[i];
+      const size = this.w < 500 ? c.size * 0.82 : c.size;
+      const pop = c.t < 0.1 ? 0.55 + (c.t / 0.1) * 0.6 : c.t < 0.24 ? 1.15 - ((c.t - 0.1) / 0.14) * 0.15 : 1;
+      const a = Math.min(1, c.t / 0.06) * (c.t > 1.3 ? Math.max(0, 1 - (c.t - 1.3) / 0.4) : 1);
+      const rise = c.t * 10;
+      ctx.font = `800 ${size}px ${TXT}`;
+      const tw = ctx.measureText(c.title).width;
+      const song = c.song > 0 ? `+${c.song}` : '';
+      ctx.font = `900 ${size * 0.8}px ${NUM}`;
+      const sw = song ? ctx.measureText(song).width + 10 : 0;
+      const cy = y - rise - (c.sub ? 18 : 0);
+      ctx.save();
+      ctx.translate(ax, cy);
+      ctx.scale(pop, pop);
+      const left = -(tw + sw) / 2;
+      this.text(c.title, left, 0, size, { weight: 800, color: c.color, align: 'left', alpha: a });
+      if (song) this.text(song, left + tw + 10, 2, size * 0.8, { font: NUM, weight: 900, color: PALETTE.gold, align: 'left', alpha: a });
+      if (c.sub) this.text(c.sub, 0, size * 0.5 + 12, 17, { weight: 700, alpha: a });
+      ctx.restore();
+      // the steal signs keep clear of it
+      if (this.nBoxes < this.boxes.length) {
+        const o = this.boxes[this.nBoxes++];
+        o.l = ax - (tw + sw) / 2 - 6;
+        o.r = ax + (tw + sw) / 2 + 6;
+        o.t = cy - size * 0.6;
+        o.b = cy + size * 0.6 + (c.sub ? 26 : 0);
+      }
+      y = cy - size * 0.6 - (c.sub ? 4 : 2) - size * 0.5;
+    }
+  }
+
+  /** A rare bird on its landmark: its name in its rarity's colour, and a small star. */
+  drawRare(r) {
+    const ctx = this.ctx;
+    const a = r.alpha;
+    if (a <= 0.01) return;
+    ctx.globalAlpha = a;
+    starPath(ctx, r.x, r.y - 26, 9);
+    ctx.fillStyle = r.color;
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = PALETTE.ink;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    this.text(r.name, r.x, r.y - 46, this.w < 500 ? 16 : 18, { weight: 800, color: r.color, alpha: a });
   }
 
   drawFloats(dt) {
