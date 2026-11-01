@@ -443,6 +443,11 @@ uniform sampler2D groundMask;
 uniform vec2 uCloud;
 uniform float uCloudAmt;
 uniform float uTime;
+uniform vec4 uScatter; // shrub density, pebble density, shrub cell (units), shrub size
+uniform vec3 uShrubA;
+uniform vec3 uShrubB;
+uniform vec3 uPebble;
+uniform vec2 uSunXZ;
 varying vec3 vWPos;
 varying vec3 vWNormal;
 float h21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
@@ -480,9 +485,48 @@ const GROUND_DETAIL = /* glsl */ `
   }
   // tarmac: fine grit and patches
   if (gm.b > 0.02) c *= mix(1.0, 0.9 + 0.12 * vnoise(wp * 4.0) * (1.0 - far) + 0.06 * fbm3(wp * 0.2), gm.b);
+  // scattered shrubs and stones on natural ground, drawn in the shader so they stay crisp however close: each cell of a
+  // grid may hold one, lit on its sun side, with a shadow thrown away from the sun
+  if (gm.g > 0.4 && far < 0.9) {
+    float k = (1.0 - far) * smoothstep(0.4, 0.8, gm.g);
+    vec2 cp = wp / uScatter.z;
+    vec2 ci = floor(cp);
+    vec2 cf = fract(cp) - 0.5;
+    float pick = h21(ci + 11.3);
+    float dens = uScatter.x * (0.55 + 0.9 * fbm3(ci * 0.11));
+    if (pick < dens) {
+      vec2 o = (vec2(h21(ci + 1.7), h21(ci + 5.1)) - 0.5) * 0.36;
+      float r = uScatter.w * (0.7 + 0.6 * h21(ci + 9.2));
+      vec2 dd = cf - o;
+      // lumpy outline
+      float ang = atan(dd.y, dd.x);
+      float rr = r * (0.86 + 0.14 * sin(ang * 5.0 + pick * 40.0));
+      float sh = smoothstep(rr * 1.15, rr * 0.75, length(dd + uSunXZ * r * 0.9));
+      c *= 1.0 - 0.38 * sh * k;
+      float bush = smoothstep(rr, rr * 0.7, length(dd));
+      float lit = clamp(0.75 - dot(normalize(dd + 1e-4), uSunXZ) * 0.35 * smoothstep(0.0, rr, length(dd)), 0.4, 1.1);
+      vec3 bc = mix(uShrubA, uShrubB, h21(ci + 3.3)) * lit;
+      c = mix(c, bc, bush * k);
+    }
+    // pebbles and dry tufts: small specks
+    vec2 pp = wp / (uScatter.z * 0.33);
+    vec2 pi = floor(pp);
+    vec2 pf = fract(pp) - 0.5 - (vec2(h21(pi + 2.1), h21(pi + 4.7)) - 0.5) * 0.5;
+    if (h21(pi + 7.7) < uScatter.y) {
+      float pr = 0.16 + 0.1 * h21(pi);
+      c = mix(c, uPebble * (0.8 + 0.4 * h21(pi + 1.0)), smoothstep(pr, pr * 0.6, length(pf)) * k * 0.85);
+    }
+  }
   // steep ground: strata
+  // steep ground: level bands of rock (strata), softly edged, with streaks washed down the face
   float steep = 1.0 - smoothstep(0.55, 0.85, normalize(vWNormal).y);
-  c *= 1.0 - steep * (0.12 * step(0.5, fract(vWPos.y * 0.6 + fbm3(wp * 0.15) * 1.5)) - 0.04);
+  if (steep > 0.01) {
+    float by = vWPos.y * 0.42 + fbm3(wp * 0.02) * 0.8;
+    float band = smoothstep(0.35, 0.6, fract(by)) * (1.0 - smoothstep(0.85, 0.98, fract(by)));
+    float thin = smoothstep(0.9, 0.97, fract(vWPos.y * 1.6 + fbm3(wp * 0.03)));
+    float streak = vnoise(vec2((wp.x + wp.y) * 0.9, vWPos.y * 0.12));
+    c *= 1.0 - steep * (0.13 * band + 0.1 * thin + 0.12 * smoothstep(0.55, 0.85, streak) * (1.0 - far) - 0.05);
+  }
   diffuseColor.rgb = c;
 }
 `;
@@ -493,6 +537,55 @@ const CLOUD_SHADOWS = /* glsl */ `
   reflectedLight.directDiffuse *= mix(1.0, 0.55, smoothstep(0.52, 0.7, cl) * uCloudAmt);
 }
 `;
+
+// what grows on each place's open ground: [shrub density, pebble density, cell size, shrub radius (share of a cell)], colours
+const SCATTER = {
+  saltmere: { s: [0.34, 0.1, 3.0, 0.24], a: '#4F6B33', b: '#6E8540', p: '#C8B98E' },
+  stormfield: { s: [0.3, 0.12, 3.2, 0.22], a: '#4B6230', b: '#7C8A44', p: '#E8DFA8' },
+  redrock: { s: [0.42, 0.22, 3.4, 0.2], a: '#6B6F42', b: '#8C8A55', p: '#8A3E22' },
+  lantern: { s: [0.3, 0.08, 2.8, 0.24], a: '#3F5A30', b: '#5C7240', p: '#B9AE96' },
+};
+
+/**
+ * The height grid at `k` times the resolution, through Catmull-Rom curves: the same ground, but its steep edges (cliffs, shores,
+ * terraces) run as smooth curves where the coarse grid's triangles would draw a saw. Returns { h, n } (n vertices a side).
+ */
+export function fineGround(map, k) {
+  const src = map.ground;
+  if (k <= 1) return { h: src, n: N };
+  const n = (N - 1) * k + 1;
+  const at = (i, j) => src[Math.min(N - 1, Math.max(0, j)) * N + Math.min(N - 1, Math.max(0, i))];
+  const cr = (p0, p1, p2, p3, t) => {
+    const t2 = t * t;
+    return 0.5 * (2 * p1 + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 + (-p0 + 3 * p1 - 3 * p2 + p3) * t2 * t);
+  };
+  // along x first, then along z
+  const rows = new Float32Array(n * N);
+  for (let j = 0; j < N; j++) {
+    for (let i = 0; i < n; i++) {
+      const fi = i / k;
+      const i0 = Math.floor(fi);
+      const t = fi - i0;
+      const lo = Math.min(at(i0, j), at(i0 + 1, j));
+      const hi = Math.max(at(i0, j), at(i0 + 1, j));
+      // kept between its two neighbours, so a curve never overshoots into a ridge or a pit
+      rows[j * n + i] = t === 0 ? at(i0, j) : Math.min(hi, Math.max(lo, cr(at(i0 - 1, j), at(i0, j), at(i0 + 1, j), at(i0 + 2, j), t)));
+    }
+  }
+  const h = new Float32Array(n * n);
+  const r = (i, j) => rows[Math.min(N - 1, Math.max(0, j)) * n + i];
+  for (let j = 0; j < n; j++) {
+    const fj = j / k;
+    const j0 = Math.floor(fj);
+    const t = fj - j0;
+    for (let i = 0; i < n; i++) {
+      const lo = Math.min(r(i, j0), r(i, j0 + 1));
+      const hi = Math.max(r(i, j0), r(i, j0 + 1));
+      h[j * n + i] = t === 0 ? r(i, j0) : Math.min(hi, Math.max(lo, cr(r(i, j0 - 1), r(i, j0), r(i, j0 + 1), r(i, j0 + 2), t)));
+    }
+  }
+  return { h, n };
+}
 
 /** The ground mesh: the height grid with its painted texture and detail shader. */
 export function buildGround(map, U, quality) {
@@ -507,25 +600,28 @@ export function buildGround(map, U, quality) {
   const maskTex = new THREE.CanvasTexture(mask);
   maskTex.flipY = false;
   const g = new THREE.BufferGeometry();
-  const pos = new Float32Array(N * N * 3);
-  const uv = new Float32Array(N * N * 2);
-  for (let j = 0; j < N; j++) {
-    for (let i = 0; i < N; i++) {
-      const k = j * N + i;
-      pos[k * 3] = -HALF + i * RES;
-      pos[k * 3 + 1] = map.ground[k];
-      pos[k * 3 + 2] = -HALF + j * RES;
-      uv[k * 2] = i / (N - 1);
-      uv[k * 2 + 1] = j / (N - 1);
+  const fine = fineGround(map, quality === 'low' ? 1 : 2);
+  const n = fine.n;
+  const step = (2 * HALF) / (n - 1);
+  const pos = new Float32Array(n * n * 3);
+  const uv = new Float32Array(n * n * 2);
+  for (let j = 0; j < n; j++) {
+    for (let i = 0; i < n; i++) {
+      const k = j * n + i;
+      pos[k * 3] = -HALF + i * step;
+      pos[k * 3 + 1] = fine.h[k];
+      pos[k * 3 + 2] = -HALF + j * step;
+      uv[k * 2] = i / (n - 1);
+      uv[k * 2 + 1] = j / (n - 1);
     }
   }
-  const index = new Uint32Array((N - 1) * (N - 1) * 6);
+  const index = new Uint32Array((n - 1) * (n - 1) * 6);
   let q = 0;
-  for (let j = 0; j < N - 1; j++) {
-    for (let i = 0; i < N - 1; i++) {
-      const a = j * N + i;
+  for (let j = 0; j < n - 1; j++) {
+    for (let i = 0; i < n - 1; i++) {
+      const a = j * n + i;
       const b = a + 1;
-      const c = a + N;
+      const c = a + n;
       const d = c + 1;
       index[q++] = a;
       index[q++] = c;
@@ -540,8 +636,17 @@ export function buildGround(map, U, quality) {
   g.setIndex(new THREE.BufferAttribute(index, 1));
   g.computeVertexNormals();
   const mat = new THREE.MeshLambertMaterial({ map: colorTex });
+  const sc = SCATTER[map.id] ?? SCATTER.stormfield;
+  const own = {
+    groundMask: { value: maskTex },
+    uScatter: { value: new THREE.Vector4(...sc.s) },
+    uShrubA: { value: new THREE.Color(sc.a) },
+    uShrubB: { value: new THREE.Color(sc.b) },
+    uPebble: { value: new THREE.Color(sc.p) },
+    uSunXZ: { value: new THREE.Vector2(0.7, 0.7) },
+  };
   mat.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, U, { groundMask: { value: maskTex } });
+    Object.assign(shader.uniforms, U, own);
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vWPos;\nvarying vec3 vWNormal;')
       .replace(
@@ -556,17 +661,29 @@ export function buildGround(map, U, quality) {
   mat.customProgramCacheKey = () => 'ground-detail';
   const mesh = new THREE.Mesh(g, mat);
   mesh.receiveShadow = true;
-  return { mesh, colorTex, maskTex, color };
+  return {
+    mesh,
+    colorTex,
+    maskTex,
+    color,
+    fine,
+    /** Shadows of the scattered shrubs fall away from the sun. */
+    setSun(dir) {
+      const l = Math.hypot(dir.x, dir.z) || 1;
+      own.uSunXZ.value.set(dir.x / l, dir.z / l);
+    },
+  };
 }
 
-/** Depth below the water line as a texture (R: 0 at the shore, 1 at 10 units down), for the sea's colour and surf. */
-export function depthTexture(map) {
-  const data = new Uint8Array(N * N);
-  for (let k = 0; k < N * N; k++) {
-    const d = (map.water - map.ground[k]) / 10;
+/** Depth below the water line as a texture (R: 0 at the shore, 1 at `seaDepth` (10) units down), for the sea's colour and surf. */
+export function depthTexture(map, fine = { h: map.ground, n: N }) {
+  const { h, n } = fine;
+  const data = new Uint8Array(n * n);
+  for (let k = 0; k < n * n; k++) {
+    const d = (map.water - h[k]) / (map.seaDepth ?? 10);
     data[k] = Math.round(255 * Math.min(1, Math.max(0, d)));
   }
-  const tex = new THREE.DataTexture(data, N, N, THREE.RedFormat, THREE.UnsignedByteType);
+  const tex = new THREE.DataTexture(data, n, n, THREE.RedFormat, THREE.UnsignedByteType);
   tex.magFilter = THREE.LinearFilter;
   tex.minFilter = THREE.LinearFilter;
   tex.needsUpdate = true;

@@ -5,6 +5,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { lightAt } from './look.js';
 
 const SHADOW = { low: 0, medium: 1024, high: 2048 };
@@ -52,6 +53,39 @@ void main() {
   if (d.y < 0.0) col = mix(col, haze * 0.8, clamp(-d.y * 6.0, 0.0, 1.0));
   gl_FragColor = vec4(col, 1.0);
 }`;
+
+// the last touch on screen colours: a little more contrast and colour, the sky's warmth pooled in the corners, a vignette
+const Grade = {
+  uniforms: {
+    tDiffuse: { value: null },
+    warm: { value: new THREE.Color('#3A1E2E') },
+    amount: { value: 1 },
+    aspect: { value: 1 },
+  },
+  vertexShader: /* glsl */ `
+varying vec2 vUv;
+void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: /* glsl */ `
+uniform sampler2D tDiffuse;
+uniform vec3 warm;
+uniform float amount;
+uniform float aspect;
+varying vec2 vUv;
+void main() {
+  vec3 c = texture2D(tDiffuse, vUv).rgb;
+  float l = dot(c, vec3(0.299, 0.587, 0.114));
+  // colour: a touch more, kept off the near-whites and the deep shadows
+  c = mix(vec3(l), c, 1.0 + 0.1 * amount * smoothstep(0.08, 0.3, l) * (1.0 - smoothstep(0.75, 1.0, l)));
+  // contrast: a little, about a low pivot so evenings don't sink into the dark
+  c = max(c + (c - 0.32) * 0.1 * amount, c * 0.9);
+  // vignette: the corners a shade darker, tinted with the sky
+  vec2 q = (vUv - 0.5) * vec2(aspect, 1.0);
+  float v = smoothstep(0.4, 1.1, length(q) / max(0.75, sqrt(aspect * aspect + 1.0) * 0.5));
+  vec3 tint = warm / max(max(warm.r, warm.g), max(warm.b, 1e-3));
+  c = mix(c, c * mix(vec3(1.0), tint, 0.35) * 0.78, v * amount);
+  gl_FragColor = vec4(clamp(c, 0.0, 1.0), 1.0);
+}`,
+};
 
 export class View {
   constructor(canvas, { quality = 'medium', pixelRatio = 1, poster = false } = {}) {
@@ -144,6 +178,8 @@ export class View {
       this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.35, 0.45, 0.88);
       this.composer.addPass(this.bloom);
       this.composer.addPass(new OutputPass());
+      this.grade = new ShaderPass(Grade);
+      this.composer.addPass(this.grade);
     }
     this.resize();
   }
@@ -165,6 +201,7 @@ export class View {
     if (this.composer) {
       this.composer.setPixelRatio(this.pixelRatio);
       this.composer.setSize(w, h);
+      this.grade.uniforms.aspect.value = w / h;
     }
   }
 
@@ -190,10 +227,14 @@ export class View {
     this.scene.fog.color.copy(L.haze).lerp(L.horizon, 0.35);
     this.focus.copy(focus);
     const d = L.sunDir;
-    this.sun.position.set(focus.x + d.x * 180, focus.y + Math.max(0.08, d.y) * 180, focus.z + d.z * 180);
+    // the light itself never drops below a low angle: long shadows, but the ground still lit to play on
+    this.sun.position.set(focus.x + d.x * 180, focus.y + Math.max(0.14, d.y) * 180, focus.z + d.z * 180);
     this.sun.target.position.copy(focus);
     this.dome.position.copy(this.camera.position);
     if (this.bloom) this.bloom.strength = 0.22 + L.glow * 0.38;
+    // open up a little as the light goes, so the last minute stays bright enough to play
+    this.renderer.toneMappingExposure = 0.92 + L.glow * 0.18;
+    if (this.grade) this.grade.uniforms.warm.value.copy(L.haze).lerp(L.zenith, 0.4 + 0.5 * u.night.value);
   }
 
   render() {

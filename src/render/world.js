@@ -31,7 +31,9 @@ uniform vec3 sunColor;
 uniform vec3 sunDir;
 uniform float time;
 uniform float dusk;
+uniform vec3 ambient;
 uniform float halfSize;
+uniform float depthN;
 uniform sampler2D depthMap;
 varying vec3 vWorld;
 #include <fog_pars_fragment>
@@ -47,32 +49,36 @@ float wave(vec2 p) {
 void main() {
   vec2 p = vWorld.xz;
   vec2 uv = (p + halfSize) / (2.0 * halfSize);
-  float depth = (uv.x > 0.0 && uv.x < 1.0 && uv.y > 0.0 && uv.y < 1.0) ? texture2D(depthMap, uv).r : 1.0;
+  // grid vertices sit on texel centres
+  float depth = (uv.x > 0.0 && uv.x < 1.0 && uv.y > 0.0 && uv.y < 1.0) ? texture2D(depthMap, uv * (depthN - 1.0) / depthN + 0.5 / depthN).r : 1.0;
   float far = clamp(length(fwidth(p)) * 1.2, 0.0, 1.0);
   float e = 0.6;
   float amp = mix(0.12, 0.35, smoothstep(0.0, 0.4, depth));
   vec3 n = normalize(vec3(-(wave(p + vec2(e, 0.0)) - wave(p - vec2(e, 0.0))) * amp, 1.0, -(wave(p + vec2(0.0, e)) - wave(p - vec2(0.0, e))) * amp));
   vec3 v = normalize(cameraPosition - vWorld);
   float fres = pow(1.0 - max(dot(n, v), 0.0), 3.0);
-  vec3 water = mix(shallow, deep, smoothstep(0.0, 0.55, depth));
+  vec3 water = mix(shallow, deep, smoothstep(0.0, 0.55, depth)) * ambient;
+  // ripples: wave faces turned to the light a little brighter, the backs a little darker
+  water *= 0.88 + 0.5 * clamp(dot(n.xz, normalize(sunDir.xz + 1e-4)), -0.25, 0.25) + 0.12 * (1.0 - far);
   // caustic shimmer in the shallows
   float caust = vnoise(p * 0.9 + vec2(time * 0.4, -time * 0.3)) * vnoise(p * 1.3 - vec2(time * 0.3, time * 0.2));
   water += vec3(0.25, 0.3, 0.25) * smoothstep(0.25, 0.6, caust) * (1.0 - smoothstep(0.05, 0.35, depth)) * (1.0 - far);
-  vec3 col = mix(water, sky, 0.12 + 0.6 * fres);
+  // water reflects only a little looking down (about 2%), much more at a glance
+  vec3 col = mix(water, sky * 0.7, 0.03 + 0.45 * fres);
   vec3 r = reflect(-v, n);
   float g = pow(max(dot(r, sunDir), 0.0), 260.0);
   float glint = pow(max(dot(r, sunDir), 0.0), 16.0);
   col += sunColor * (g * 4.0 + glint * 0.3);
   // sparkle: tiny bright points on the wave crests facing the sun
   float sp = step(0.985, h21(floor(p * 2.5) + floor(time * 4.0))) * smoothstep(0.2, 0.8, wave(p)) * (1.0 - far);
-  col += sunColor * sp * 0.6 * (1.0 - dusk);
+  col += sunColor * sp * (0.04 + 3.0 * glint) * (1.0 - dusk);
   // surf: a line at the shore, and bands that roll in and fade
   float edge = 1.0 - smoothstep(0.0, 0.035, depth);
   float roll = sin(depth * 70.0 - time * 1.8 + vnoise(p * 0.15) * 6.0);
   float bands = smoothstep(0.6, 0.95, roll) * (1.0 - smoothstep(0.02, 0.16, depth));
   float broken = smoothstep(0.35, 0.7, vnoise(p * 1.4 + time * 0.2));
   float foam = clamp(edge * (0.6 + 0.4 * broken) + bands * broken * 0.8, 0.0, 1.0);
-  col = mix(col, vec3(0.97, 0.96, 0.92) * (0.7 + 0.3 * sky), foam * 0.9);
+  col = mix(col, vec3(0.97, 0.96, 0.92) * (0.35 + 0.65 * ambient) * (0.7 + 0.3 * sky), foam * 0.9);
   float alpha = mix(0.5, 0.97, smoothstep(0.0, 0.3, depth));
   alpha = max(alpha, foam);
   gl_FragColor = vec4(col, alpha);
@@ -91,27 +97,43 @@ uniform float scale;
 uniform vec2 wind;
 varying float vA;
 varying float vT;
+varying float vSeed;
 void main() {
-  float t = fract(time * 0.075 + phase);
-  vec3 p = origin + vec3(wind.x * t * 9.0, t * 8.0 + t * t * 3.0, wind.y * t * 9.0);
-  p.x += sin(t * 6.0 + phase * 20.0) * 0.5 * t;
+  float t = fract(time * 0.06 + phase);
+  // a plume: up from the chimney, then bent over and carried off by the breeze
+  float rise = 5.0 * (1.0 - exp(-t * 3.2)) + t * 1.5;
+  float drift = t * t * 10.0 + t * 4.0;
+  vec3 p = origin + vec3(wind.x * drift, rise, wind.y * drift);
+  p.x += sin(t * 5.0 + phase * 20.0) * 0.7 * t;
+  p.z += cos(t * 4.0 + phase * 13.0) * 0.6 * t;
   vec4 mv = viewMatrix * vec4(p, 1.0);
   gl_Position = projectionMatrix * mv;
-  float size = mix(1.4, 6.5, sqrt(t));
+  float size = mix(1.2, 7.5, sqrt(t));
   gl_PointSize = size * scale / -mv.z;
-  vA = smoothstep(0.0, 0.08, t) * (1.0 - t);
+  vA = smoothstep(0.0, 0.1, t) * (1.0 - t) * (1.0 - t);
   vT = t;
+  vSeed = fract(phase * 7.31);
 }`;
 
 const smokeFrag = /* glsl */ `
 uniform vec3 tint;
+uniform vec3 shade;
 varying float vA;
 varying float vT;
+varying float vSeed;
+float h21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+float vn(vec2 p) {
+  vec2 i = floor(p); vec2 f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(h21(i), h21(i + vec2(1.0, 0.0)), u.x), mix(h21(i + vec2(0.0, 1.0)), h21(i + vec2(1.0, 1.0)), u.x), u.y);
+}
 void main() {
   vec2 q = gl_PointCoord - 0.5;
-  float d = length(q);
-  float a = smoothstep(0.5, 0.0, d) * vA * 0.3;
-  gl_FragColor = vec4(tint * (0.95 - 0.15 * vT), a);
+  // a lumpy puff, not a disc: its edge broken by noise, lit from above
+  float n = vn(q * 5.0 + vSeed * 40.0) * 0.6 + vn(q * 11.0 + vSeed * 17.0) * 0.4;
+  float d = length(q) + (n - 0.5) * 0.22;
+  float a = smoothstep(0.48, 0.12, d) * vA * 0.32;
+  vec3 col = mix(shade, tint, clamp(0.55 - q.y * 1.2 + n * 0.3, 0.0, 1.0));
+  gl_FragColor = vec4(mix(col * 0.82, col, vT), a);
 }`;
 
 // ------------------------------------------------------------------ the lighthouse beam
@@ -208,7 +230,7 @@ export function buildWorld(map, quality = 'medium') {
   // the sea (or the river)
   let seaUniforms = null;
   if (map.hasSea) {
-    const depth = depthTexture(map);
+    const depth = depthTexture(map, ground.fine);
     depth.unpackAlignment = 1;
     disposables.push(depth);
     const deep = new THREE.Color(look.sea);
@@ -220,7 +242,9 @@ export function buildWorld(map, quality = 'medium') {
       sunDir: { value: new THREE.Vector3() },
       time: { value: 0 },
       dusk: { value: 0 },
+      ambient: { value: new THREE.Color(1, 1, 1) },
       halfSize: { value: HALF },
+      depthN: { value: ground.fine.n },
       depthMap: { value: depth },
       ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
     };
@@ -324,9 +348,9 @@ export function buildWorld(map, quality = 'medium') {
   }
 
   // chimney smoke
-  const smokeUniforms = { time: { value: 0 }, scale: { value: 600 }, wind: { value: new THREE.Vector2(0.6, 0.25) }, tint: { value: new THREE.Color('#EDE6E0') } };
+  const smokeUniforms = { time: { value: 0 }, scale: { value: 600 }, wind: { value: new THREE.Vector2(0.85, 0.35) }, tint: { value: new THREE.Color('#EDE6E0') }, shade: { value: new THREE.Color('#8A8090') } };
   if (smoke.length) {
-    const per = quality === 'low' ? 5 : 9;
+    const per = quality === 'low' ? 6 : 12;
     const origin = new Float32Array(smoke.length * per * 3);
     const phase = new Float32Array(smoke.length * per);
     let k = 0;
@@ -410,12 +434,15 @@ export function buildWorld(map, quality = 'medium') {
       U.uDusk.value = Math.min(1, light.glow * 1.1);
       U.uCloud.value.addScaledVector(cloudWind, dt);
       U.uCloudAmt.value = 1 - Math.min(1, light.glow) * 0.7;
+      ground.setSun(light.sunDir);
       if (seaUniforms) {
-        seaUniforms.sky.value.copy(light.horizon).lerp(light.zenith, 0.35);
+        seaUniforms.sky.value.copy(light.horizon).lerp(light.zenith, 0.55);
         seaUniforms.sunColor.value.copy(light.sun).multiplyScalar(Math.max(0.2, light.sunI / 2));
         seaUniforms.sunDir.value.copy(light.sunDir);
         seaUniforms.time.value = time;
         seaUniforms.dusk.value = light.glow;
+        // the water is lit like everything else: full by day, dim under the moon
+        seaUniforms.ambient.value.copy(light.hemiSky).multiplyScalar(light.hemiI * 0.62).addScalar(Math.min(1, light.sunI / 2.6) * 0.38);
       }
       thermUniforms.time.value = time;
       thermUniforms.tint.value.copy(light.sun).lerp(white, 0.4);
@@ -432,7 +459,8 @@ export function buildWorld(map, quality = 'medium') {
         b.rotation.y = time * 0.5;
       }
       smokeUniforms.time.value = time;
-      smokeUniforms.tint.value.copy(light.hemiSky).lerp(white, 0.55);
+      smokeUniforms.tint.value.copy(light.sun).lerp(white, 0.5).multiplyScalar(Math.min(1, 0.35 + light.sunI * 0.3));
+      smokeUniforms.shade.value.copy(light.hemiSky).multiplyScalar(light.hemiI * 0.55);
       if (view) smokeUniforms.scale.value = (view.height * view.pixelRatio * 0.5) / Math.tan((view.camera.fov * Math.PI) / 360);
     },
     dispose() {

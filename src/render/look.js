@@ -8,11 +8,11 @@ const KEYS = [
   { s: 0.2, zenith: '#6A97C9', horizon: '#FFC983', haze: '#F2B878', sun: '#FFD99A', sunI: 2.6, hemiSky: '#C7D2E2', hemiGround: '#B98352', hemiI: 1.1, elev: 19, glow: 0, disc: '#FFE9B0' },
   { s: 1 / 3, zenith: '#5E7FB8', horizon: '#FFA55C', haze: '#F0975A', sun: '#FFB873', sunI: 2.45, hemiSky: '#C5B9C9', hemiGround: '#B4704A', hemiI: 1.0, elev: 14, glow: 0, disc: '#FFD79A' },
   { s: 0.52, zenith: '#55669F', horizon: '#FF8A4A', haze: '#E9794D', sun: '#FF9A5C', sunI: 2.2, hemiSky: '#B8A0B8', hemiGround: '#A85E42', hemiI: 0.92, elev: 9, glow: 0.05, disc: '#FFC07A' },
-  { s: 2 / 3, zenith: '#4B4F8E', horizon: '#F2767A', haze: '#D96B78', sun: '#FF8466', sunI: 1.85, hemiSky: '#A890B6', hemiGround: '#9A5250', hemiI: 0.85, elev: 5.5, glow: 0.2, disc: '#FFAA80' },
-  { s: 0.8, zenith: '#3E3F7E', horizon: '#E8758F', haze: '#C46684', sun: '#FF7A6A', sunI: 1.45, hemiSky: '#9483AE', hemiGround: '#83485A', hemiI: 0.78, elev: 3, glow: 0.45, disc: '#FF9A86' },
-  { s: 155 / 180, zenith: '#2F2F66', horizon: '#C65E86', haze: '#A85676', sun: '#FF6E66', sunI: 1.05, hemiSky: '#7C6EA0', hemiGround: '#6A3E58', hemiI: 0.7, elev: 1.6, glow: 0.75, disc: '#FF8A7A' },
-  { s: 1.0, zenith: '#24234F', horizon: '#9C4E7C', haze: '#7C4468', sun: '#F06070', sunI: 0.7, hemiSky: '#625A8C', hemiGround: '#4E3450', hemiI: 0.6, elev: -0.5, glow: 1, disc: '#FF7A70' },
-  { s: 1.12, zenith: '#16173A', horizon: '#4A3A6E', haze: '#3A3058', sun: '#8C90C8', sunI: 0.45, hemiSky: '#4A4C7A', hemiGround: '#2E2840', hemiI: 0.55, elev: 18, glow: 1, disc: '#E8E4FF' },
+  { s: 2 / 3, zenith: '#4B4F8E', horizon: '#F2767A', haze: '#D96B78', sun: '#FF9C74', sunI: 1.95, hemiSky: '#AEA6CE', hemiGround: '#9A6058', hemiI: 0.95, elev: 5.5, glow: 0.2, disc: '#FFAA80' },
+  { s: 0.8, zenith: '#3E3F7E', horizon: '#E8758F', haze: '#C46684', sun: '#FFA282', sunI: 1.7, hemiSky: '#9CA6D8', hemiGround: '#7C5C70', hemiI: 0.95, elev: 3, glow: 0.45, disc: '#FF9A86' },
+  { s: 155 / 180, zenith: '#2F2F66', horizon: '#C65E86', haze: '#A85676', sun: '#FF9C86', sunI: 1.5, hemiSky: '#8C96CE', hemiGround: '#604C68', hemiI: 0.95, elev: 1.6, glow: 0.75, disc: '#FF8A7A' },
+  { s: 1.0, zenith: '#24234F', horizon: '#9C4E7C', haze: '#7C4468', sun: '#F49090', sunI: 1.05, hemiSky: '#7682BE', hemiGround: '#4C3E5C', hemiI: 0.88, elev: -0.5, glow: 1, disc: '#FF7A70' },
+  { s: 1.12, zenith: '#16173A', horizon: '#4A3A6E', haze: '#3A3058', sun: '#A2B2E2', sunI: 0.62, hemiSky: '#5E6CA2', hemiGround: '#302E4A', hemiI: 0.76, elev: 18, glow: 1, disc: '#E8E4FF' },
 ];
 
 const tmp = KEYS.map((k) => {

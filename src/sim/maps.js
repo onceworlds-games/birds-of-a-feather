@@ -725,13 +725,14 @@ function redrock() {
     ochre: '#E3A857',
     sage: '#8F9A6A',
     sand: '#E8C9A0',
-    sea: '#2F6E73',
+    sea: '#25797E',
     walls: ['#C9A27A', '#B98B62', '#D8B48A'],
     roofs: ['#7A4A33', '#6A5A4A', '#8A5A3A'],
     fields: [],
   });
   map.hasSea = true;
   map.water = 1.2;
+  map.seaDepth = 3.5; // a river: deep a few units in
   const cx = (z) => 40 * Math.sin(z / 90) + 22 * Math.sin(z / 37 + 0.6);
   map.canyonX = cx;
   const buttes = [];
@@ -747,12 +748,12 @@ function redrock() {
   const plateau = (x, z) => 34 + 5 * noise.fbm(x / 80, z / 80, 3);
   fillGround(map, (x, z) => {
     const dx = Math.abs(x - cx(z));
-    const wall = smoothstep(22, 58, dx + 6 * noise(x / 25, z / 25));
+    const wall = smoothstep(20, 66, dx + 7 * noise(x / 45, z / 45));
     let h = lerp(-1.5, plateau(x, z), wall);
-    // terraces
+    // terraces: ledges with walls between, the walls wide enough that the grid draws them as slopes, not steps
     const step = 7;
     const t = h / step;
-    h = (Math.floor(t) + smoothstep(0.65, 1, t - Math.floor(t))) * step;
+    h = lerp(h, (Math.floor(t) + smoothstep(0.3, 1, t - Math.floor(t))) * step, 0.75);
     for (const b of buttes) {
       const d = Math.hypot(x - b.x, z - b.z);
       const inGorge = Math.abs(b.x - cx(b.z)) < 30;
@@ -1144,15 +1145,21 @@ function tintRedrock(map) {
   const rock = hex(L.rock);
   const light = hex(L.rockLight);
   const ochre = hex(L.ochre);
-  const sage = hex(L.sage);
   const sand = hex(L.sand);
+  const dirt = hex('#C0683C');
+  const pale = hex('#E9C58E');
+  const bank = hex('#8C9A5E');
   const noise = makeNoise2('redrock:tint');
   fillTint(map, (x, z, h, slope) => {
+    // walls: bands of red and pale rock by height
     const band = 0.5 + 0.5 * Math.sin(h * 0.9 + noise(x / 40, z / 40) * 2);
-    let c = mix(rock, light, band);
-    if (h < 3) c = mix(sand, hex('#8FA06A'), 0.4);
-    c = mix(c, mix(ochre, sage, smoothstep(-0.2, 0.5, noise.fbm(x / 60, z / 60, 3))), smoothstep(0.5, 0.15, slope) * (h > 25 ? 0.75 : 0.2));
-    return shade(c, 0.9 + 0.14 * noise(x / 7, z / 7));
+    const wall = mix(rock, light, band);
+    // flats: pale sand and ochre, with patches of red dirt
+    const patch = smoothstep(-0.15, 0.35, noise.fbm(x / 55, z / 55, 3));
+    let flat = mix(mix(pale, ochre, 0.45 + 0.35 * noise(x / 18, z / 18)), dirt, patch * 0.7);
+    if (h < 3.2) flat = mix(sand, bank, smoothstep(3.2, 1.6, h) * 0.75);
+    const c = mix(wall, flat, smoothstep(0.62, 0.3, slope));
+    return shade(c, 0.92 + 0.12 * noise(x / 7, z / 7));
   });
 }
 

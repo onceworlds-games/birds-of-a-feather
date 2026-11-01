@@ -2101,6 +2101,12 @@ async function boot() {
       today: () => openToday('title'),
       daily: startDaily,
       place: startPlace,
+      // move my bird (and the camera after it) to a spot, for looking at a place
+      at: (x, z, yaw = 0) => {
+        const sky = activeSky();
+        placeLeader(x, z, yaw, 40, sky.map);
+        cam.pos.set(x - Math.cos(yaw) * 16, 46, z - Math.sin(yaw) * 16);
+      },
       give: ({ xp, species, equip: e } = {}) => {
         if (xp) profile.xp = xp;
         for (const id of species ?? []) profile.aviary[id] = (profile.aviary[id] ?? 0) + 1;

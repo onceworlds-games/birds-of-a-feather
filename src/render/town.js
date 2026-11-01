@@ -5,6 +5,7 @@
 
 import { SURF } from './worldmat.js';
 import { makeRng } from '../sim/rng.js';
+import { groundAt } from '../sim/maps.js';
 
 const SHUTTERS = 5;
 const FLOWERS = ['#E8566A', '#F2A33A', '#D84A8C', '#F4E04A', '#E8E4F0', '#C83A3A'];
@@ -19,10 +20,14 @@ export function buildTown(map, B) {
     const seed = (k * 0.6180339) % 1;
     const wallHex = b.barn && L.barn ? L.barn : L.walls[b.wall % L.walls.length];
     const roofHex = b.barn ? L.barnRoof ?? '#6E6A66' : L.roofs[b.roofColor % L.roofs.length];
-    if (b.kind === 'quay' || b.kind === 'trestle') {
-      B.color(b.kind === 'quay' ? L.stone ?? '#CDB9A0' : '#7A5A40').surf(b.kind === 'quay' ? SURF.stone : SURF.wood, seed);
+    if (b.kind === 'trestle') {
+      trestle(B, b, map, seed);
+      continue;
+    }
+    if (b.kind === 'quay') {
+      B.color(L.stone ?? '#CDB9A0').surf(SURF.stone, seed);
       B.box(b.x, b.y, b.z, b.w, b.h, b.d, b.yaw);
-      if (b.kind === 'quay') quayDressing(B, b, rng);
+      quayDressing(B, b, rng);
       continue;
     }
     const shutter = Math.floor(rng.next() * SHUTTERS);
@@ -54,6 +59,65 @@ export function buildTown(map, B) {
     if (b.kind === 'house' && b.roof === 'gable') houseDressing(B, b, rng);
   }
   return { smoke };
+}
+
+/** A timber railway trestle: a deck with sleepers and two rails on bents of battered posts, girts and cross-braces. */
+function trestle(B, b, map, seed) {
+  const top = b.y + b.h;
+  const deck = 0.8;
+  const c = Math.cos(b.yaw);
+  const s = Math.sin(b.yaw);
+  const at = (u, v) => [b.x + c * u + s * v, b.z + s * u - c * v];
+  B.color('#6E4C34').surf(SURF.wood, seed);
+  B.box(b.x, top - deck, b.z, b.w, deck, b.d, b.yaw);
+  // sleepers and rails
+  B.color('#4A3426').surf(SURF.plain);
+  for (let u = -b.w / 2 + 0.6; u < b.w / 2; u += 1.15) {
+    const [x, z] = at(u, 0);
+    B.box(x, top, z, 0.5, 0.14, b.d * 0.62, b.yaw);
+  }
+  B.color('#9A98A0');
+  for (const v of [-0.72, 0.72]) {
+    const [x, z] = at(0, v);
+    B.box(x, top + 0.14, z, b.w, 0.13, 0.13, b.yaw);
+  }
+  // bents down to the ground
+  const half = b.d / 2;
+  for (let u = -b.w / 2 + 2; u < b.w / 2 - 1; u += 6) {
+    const [x, z] = at(u, 0);
+    const gy = groundAt(map, x, z) - 0.6;
+    const hgt = top - deck - gy;
+    if (hgt < 1.2) continue;
+    const batter = Math.min(4, hgt * 0.12);
+    B.color('#7E5C40', 0.94 + 0.12 * ((u * 0.37) % 1)).surf(SURF.plain);
+    // outer posts lean in; two plumb posts inside
+    for (const sg of [-1, 1]) {
+      const [x0, z0] = at(u, sg * (half + batter));
+      const [x1, z1] = at(u, sg * (half - 0.3));
+      B.tube([[x0, gy, z0], [x1, top - deck, z1]], 0.24);
+    }
+    for (const v of [-0.7, 0.7]) {
+      const [px, pz] = at(u, v);
+      B.box(px, gy, pz, 0.36, hgt, 0.36, b.yaw);
+    }
+    // girts every few units, braced corner to corner between them
+    B.color('#6A4C36').surf(SURF.plain);
+    const step = 4.5;
+    for (let y = gy + step; y < top - deck - 0.5; y += step) {
+      const k = (y - gy) / hgt;
+      const w = half + batter * (1 - k) + 0.2;
+      const [ax, az] = at(u, -w);
+      const [bx, bz] = at(u, w);
+      B.tube([[ax, y, az], [bx, y, bz]], 0.14);
+      const y0 = y - step;
+      const k0 = (y0 - gy) / hgt;
+      const w0 = half + batter * (1 - k0);
+      const [cx0, cz0] = at(u, -w0);
+      const [dx0, dz0] = at(u, w0);
+      B.tube([[cx0, y0, cz0], [bx, y, bz]], 0.1);
+      B.tube([[dx0, y0, dz0], [ax, y, az]], 0.1);
+    }
+  }
 }
 
 const frame = (b) => {

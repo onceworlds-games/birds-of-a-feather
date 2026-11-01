@@ -135,8 +135,9 @@ export class Screens {
     return false;
   }
 
+  /** Put a built screen up. Each screen clears the last before building, so its own keys and timers stay. */
   show(name, node) {
-    this.clear();
+    this.root.replaceChildren();
     this.current = name;
     const wrap = el('div', `screen ${name}`);
     wrap.appendChild(node);
@@ -146,6 +147,7 @@ export class Screens {
 
   /** The title: the name, Fly, then Today and the Aviary, and where the player stands. */
   title({ level, share, streak, goalsDone, onFly, onAviary, onToday, resume }) {
+    this.clear(); // first: what this screen binds and schedules while it's built must outlive show()
     const box = el('div', 'title-box');
     const h = el('h1', 'game-name');
     for (const word of ['Birds', 'of a', 'Feather']) h.appendChild(el('span', null, word));
@@ -276,6 +278,7 @@ export class Screens {
 
   /** The night: results, the tally, the day's goals; Migration and the Daily Sunset (alone), the Aviary, rival skill, dawn. */
   night({ lines, best, report, goals, solo, skill, onMigration, onDaily, onAviary, onSkill, onUse, dawnIn }) {
+    this.clear();
     const box = el('div', 'night-box');
     const head = el('div', 'night-lines');
     for (const [text, cls] of lines) head.appendChild(el('div', `line ${cls ?? ''}`, text));
@@ -318,6 +321,7 @@ export class Screens {
   }
 
   route({ feathers, open, onPick, onBack }) {
+    this.clear();
     const box = el('div', 'route-box');
     box.appendChild(el('h2', 'route-title', 'Migration'));
     const path = el('div', 'route');
@@ -348,6 +352,7 @@ export class Screens {
 
   /** Before a solo sunset: what it is and what to do. */
   intro({ top, name, goal }) {
+    this.clear();
     const box = el('div', 'intro-box');
     box.appendChild(el('div', 'intro-n', top));
     box.appendChild(el('h2', 'intro-name', name));
@@ -356,6 +361,7 @@ export class Screens {
   }
 
   result({ index, rank, n, earned, before, hasNext, report, onUse, onNext, onAgain, onBack }) {
+    this.clear();
     const P = PLACES[index];
     const box = el('div', 'result-box');
     box.appendChild(el('h2', 'result-name', P.name));
@@ -390,6 +396,7 @@ export class Screens {
 
   /** After a Daily Sunset: the flock, the day's best, the board, the song. */
   dailyResult({ place, n, rank, best, newBest, board, report, onUse, onAgain, onBack }) {
+    this.clear();
     const box = el('div', 'result-box daily');
     box.appendChild(el('div', 'intro-n', 'Daily Sunset'));
     box.appendChild(el('h2', 'result-name', place));
@@ -408,6 +415,7 @@ export class Screens {
    * Today: the streak, the day's three goals, and the Daily Sunset (its place, the board, the player's best; flown alone).
    */
   today({ streak, goals, daily, onDaily, onBack }) {
+    this.clear();
     const box = el('div', 'today-box');
     box.appendChild(el('h2', 'route-title', 'Today'));
     const cols = el('div', 'today-cols');
@@ -447,6 +455,7 @@ export class Screens {
    * opens it. A tap leads with a bird or puts on a trail or flair. portraits: { species id: canvas, `${id}:dark`: canvas }.
    */
   aviary({ profile, level, tab, portraits, onTab, onEquip, onBack }) {
+    this.clear();
     const box = el('div', 'aviary-box');
     const head = el('div', 'aviary-head');
     const caught = SPECIES.filter((s) => s.id === 'starling' || profile.aviary[s.id] > 0).length;
@@ -511,6 +520,7 @@ export class Screens {
   }
 
   pause({ onResume, onLeave }) {
+    this.clear();
     const box = el('div', 'pause-box');
     box.appendChild(el('h2', 'pause-title', 'Paused'));
     box.appendChild(wire([sign('Resume', { key: 'Space', gold: true, onClick: onResume, sound: this.tick }), sign('Leave', { key: 'Esc', onClick: onLeave, sound: this.tick })]));
@@ -522,6 +532,7 @@ export class Screens {
 
   /** One message, one button. */
   notice({ text, button, onClick }) {
+    this.clear();
     const box = el('div', 'notice-box');
     box.appendChild(el('h2', 'notice-title', text));
     box.appendChild(wire([sign(button, { key: 'Space', gold: true, onClick, sound: this.tick })]));
