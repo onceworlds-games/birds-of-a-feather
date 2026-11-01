@@ -6,8 +6,8 @@ export const FLIGHT = {
   boostSpeed: 24,
   accelUp: 40, // u/s² toward a faster target speed (14 → 24 in 0.25 s)
   accelDown: 12,
-  turnRate: (110 * Math.PI) / 180, // rad/s at full stick
-  turnRateBoost: (80 * Math.PI) / 180,
+  turnRate: (130 * Math.PI) / 180, // rad/s at full stick
+  turnRateBoost: (95 * Math.PI) / 180,
   turnEase: 0.12, // s to reach the asked turn rate
   heavyFrom: 100, // a flock bigger than this turns wider...
   heavyAt: 500, // ...down to (1 − heavy) of the turn rate at this size

@@ -322,14 +322,11 @@ export function rivalInput(sky, f, rng) {
       if (Math.abs(L.turnVel) > 0.3) b.dodgeDir = -Math.sign(L.turnVel);
     }
   }
-  let climb = 0;
+  // nobody climbs or dives by choice: the band follows the roofs and thermals lift
+  const climb = 0;
   if (sky.clock < b.dodgeUntil) {
     diff = b.dodgeDir * 2;
     boost = L.stamina > 0.2;
-    climb = -0.6;
-  } else if (b.goal.kind === 'flock' || (b.goal.kind === 'wheel' && d < 60)) {
-    const dy = point.y - L.y;
-    if (Math.abs(dy) > 3) climb = clamp(dy / 8, -1, 1);
   }
   return { turn: clamp(diff / 0.5, -1, 1), climb, boost };
 }

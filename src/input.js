@@ -1,5 +1,5 @@
-// Steering: the mouse (the bird turns toward the cursor), the keys, or the platform's stick and Boost button on a phone.
-// Whichever was used last steers, and the hints name it.
+// Steering: point where to fly. The mouse (the bird flies toward the cursor), WASD or the arrows (eight ways, up the screen is
+// up), or the platform's stick and Boost button on a phone. Whichever was used last steers, and the hints name it.
 
 export class Input {
   constructor(el, ow) {
@@ -11,6 +11,7 @@ export class Input {
     this.pressed = []; // keys that went down since the last read
     this.onAny = null;
     this.mouseEase = 1;
+    this.out = { has: false, sx: 0, sy: 0, mouse: false, boost: false };
     const key = (e) => {
       const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
       if (e.type === 'keydown') {
@@ -72,19 +73,24 @@ export class Input {
   }
 
   /**
-   * The stick for this frame: { turn (right +), climb (up +), boost }. `lead` is the lead bird's position on screen (px),
-   * `w`, `h` the view's size.
+   * Where the player points this frame, in screen terms: { has, sx, sy (a direction on screen, right and down are +; for the
+   * mouse, the cursor's position in px), mouse (true: sx, sy is the cursor), boost }.
    */
-  read(lead, w, h, dt) {
-    let turn = 0;
-    let climb = 0;
+  read(dt) {
+    const o = this.out;
+    o.has = false;
+    o.mouse = false;
+    o.sx = 0;
+    o.sy = 0;
     let boost = false;
     const k = this.keys;
-    if (k.has('a') || k.has('ArrowLeft')) turn -= 1;
-    if (k.has('d') || k.has('ArrowRight')) turn += 1;
-    if (k.has('w') || k.has('ArrowUp')) climb += 1;
-    if (k.has('s') || k.has('ArrowDown')) climb -= 1;
-    if (k.has(' ')) boost = true;
+    let kx = 0;
+    let ky = 0;
+    if (k.has('a') || k.has('ArrowLeft')) kx -= 1;
+    if (k.has('d') || k.has('ArrowRight')) kx += 1;
+    if (k.has('w') || k.has('ArrowUp')) ky -= 1;
+    if (k.has('s') || k.has('ArrowDown')) ky += 1;
+    if (k.has(' ') || k.has('Shift')) boost = true;
     let stick = null;
     try {
       stick = this.ow?.controls?.stick ?? null;
@@ -92,27 +98,27 @@ export class Input {
     } catch {
       stick = null;
     }
-    if (stick && (Math.abs(stick.x) > 0.08 || Math.abs(stick.y) > 0.08)) {
+    if (stick && Math.hypot(stick.x, stick.y) > 0.2) {
       this.last = 'touch';
-      turn += stick.x;
-      climb += -stick.y;
-    }
-    // the mouse: its offset from the lead bird on screen
-    if (this.last === 'mouse' && lead) {
+      o.has = true;
+      o.sx = stick.x;
+      o.sy = stick.y;
+    } else if (kx || ky) {
+      o.has = true;
+      o.sx = kx;
+      o.sy = ky;
+    } else if (this.last === 'mouse') {
       if (this.mouse.in) this.mouseEase = 1;
       else this.mouseEase = Math.max(0, this.mouseEase - dt);
-      const half = w / 2;
-      const dx = this.mouse.x - lead.x;
-      const dy = this.mouse.y - lead.y;
-      const dead = 12;
-      const mx = Math.abs(dx) < dead ? 0 : (dx - Math.sign(dx) * dead) / (half * 0.35);
-      // a wide band in the middle flies level: climbing and diving need a clear push
-      const vdead = h * 0.12;
-      const my = Math.abs(dy) < vdead ? 0 : -(dy - Math.sign(dy) * vdead) / (h * 0.25);
-      turn += Math.max(-1, Math.min(1, mx)) * this.mouseEase;
-      climb += Math.max(-1, Math.min(1, my)) * this.mouseEase;
+      if (this.mouseEase > 0.5) {
+        o.has = true;
+        o.mouse = true;
+        o.sx = this.mouse.x;
+        o.sy = this.mouse.y;
+      }
       if (this.mouse.down) boost = true;
     }
-    return { turn: Math.max(-1, Math.min(1, turn)), climb: Math.max(-1, Math.min(1, climb)), boost };
+    o.boost = boost;
+    return o;
   }
 }

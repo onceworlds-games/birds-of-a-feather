@@ -79,6 +79,7 @@ function setWorld(mapId) {
   }
   world = buildWorld(getMap(mapId), view.quality);
   scene.add(world.group);
+  setBearing(world.map);
 }
 
 // ------------------------------------------------------------------ the profile (ow.save)
@@ -120,6 +121,9 @@ function saveProfile() {
     }
   }
 }
+
+/** What the player flies as: the lead bird's species, the trail behind it and the flock's flair. */
+const equipped = { species: 0, trail: 0, flair: 0 };
 
 const awarded = new Set();
 function award(id) {
@@ -232,6 +236,7 @@ const S = {
   nightWon: false,
   roostMap: null,
   stormHintAt: -99,
+  shakeDir: { x: 0, z: 0 },
 };
 
 function newSunsetStats() {
@@ -308,15 +313,28 @@ function steer(dt, sky) {
     const f = sky.flocks.get(myId());
     const a = autopilot.input(sky, f, L);
     me.stick.turn = a.turn;
-    me.stick.climb = a.climb;
+    me.stick.climb = 0;
     me.stick.boost = a.boost;
     return me.stick;
   }
-  // the mouse steers toward a point 25 u ahead of the bird, as the camera sees it
-  const ahead = project(L.x + Math.cos(L.yaw) * 25, L.y + 1.5, L.z + Math.sin(L.yaw) * 25, pa);
-  const s = input.read(ahead.behind ? null : ahead, view.width, view.height, dt);
-  me.stick.turn = s.turn;
-  me.stick.climb = s.climb;
+  // point where to fly: the cursor's spot on the bird's level, or a direction on screen from the keys or the stick
+  const s = input.read(dt);
+  let want = null;
+  if (s.has) {
+    if (s.mouse) {
+      if (screenToLevel(s.sx, s.sy, L.y, gpt)) {
+        const dx = gpt.x - L.x;
+        const dz = gpt.z - L.z;
+        if (dx * dx + dz * dz > 6) want = Math.atan2(dz, dx);
+      }
+    } else {
+      const wx = camRight.x * s.sx - camFwd.x * s.sy;
+      const wz = camRight.z * s.sx - camFwd.z * s.sy;
+      want = Math.atan2(wz, wx);
+    }
+  }
+  me.stick.turn = want === null ? 0 : clamp(angleDiff(L.yaw, want) / 0.32, -1, 1);
+  me.stick.climb = 0;
   me.stick.boost = s.boost;
   return me.stick;
 }
@@ -360,6 +378,10 @@ const cam = {
   fov: 60,
   roll: 0,
   boostKick: 0,
+  punch: 1, // < 1 leans in on a big moment
+  punchT: 0,
+  punchTo: 1,
+  chase: 0, // 0 → 1 as the play camera takes over
 };
 const tmpV = new THREE.Vector3();
 const pa = { x: 0, y: 0, behind: false };
@@ -382,16 +404,49 @@ const baseFov = () => {
   return clamp((2 * Math.atan(Math.tan((50 * Math.PI) / 360) / aspect) * 180) / Math.PI, 60, 84);
 };
 
+// The play camera: high over the town on a fixed bearing for the place (the sun off the top-left corner), looking down at the
+// flock, leading it, and pulling back as the flock grows.
+const PITCH = (54 * Math.PI) / 180;
+const camFwd = new THREE.Vector3(1, 0, 0); // up the screen, on the ground
+const camRight = new THREE.Vector3(0, 0, 1);
+const gpt = { x: 0, z: 0 };
+const ray = new THREE.Vector3();
+let camBearing = 0;
+
+function setBearing(map) {
+  camBearing = Number.isFinite(map.look.bearing) ? map.look.bearing : Math.PI + 0.32 + Math.PI / 4;
+  camFwd.set(Math.cos(camBearing), 0, Math.sin(camBearing));
+  camRight.set(-camFwd.z, 0, camFwd.x);
+}
+
+const playFov = () => {
+  const aspect = view.width / view.height;
+  if (aspect >= 1.1) return 44;
+  // keep about 48° across on a phone held upright
+  return clamp((2 * Math.atan(Math.tan((48 * Math.PI) / 360) / aspect) * 180) / Math.PI, 44, 82);
+};
+
+/** How far the play camera stands from what it looks at, for a flock of n. */
+const chaseDistance = (n) => (50 + 1.75 * Math.sqrt(Math.max(0, n))) * (portrait() ? 1.12 : 1);
+
 function chaseWant(L, n, out, look) {
-  // far enough back that the whole flock trails out in front of the camera, high enough to see its shape
-  const k = portrait() ? 1.3 : 1;
-  const length = (0.5 + 0.08 * Math.sqrt(Math.max(0, n))) * FLIGHT.speed;
-  const back = Math.min(46, length + 10) * k;
-  const up = (5 + back * 0.32) * (portrait() ? 1.1 : 1);
-  const hx = Math.cos(L.yaw);
-  const hz = Math.sin(L.yaw);
-  out.set(L.x - hx * back, L.y + up, L.z - hz * back);
-  look.set(L.x + hx * 10, L.y + 1.2, L.z + hz * 10);
+  // between the lead bird and the middle of its flock, a little ahead of it
+  const mid = me.puffs[3];
+  const D = chaseDistance(n) * (1 + cam.boostKick) * cam.punch;
+  const ahead = 4 + D * 0.08;
+  look.set(L.x * 0.62 + mid.x * 0.38 + Math.cos(L.yaw) * ahead, L.y - 3, L.z * 0.62 + mid.z * 0.38 + Math.sin(L.yaw) * ahead);
+  const c = Math.cos(PITCH) * D;
+  out.set(look.x - camFwd.x * c, look.y + Math.sin(PITCH) * D, look.z - camFwd.z * c);
+}
+
+/** The point on the level y under a spot on the screen (px), or false if the ray misses it. */
+function screenToLevel(px, py, y, out) {
+  ray.set((px / view.width) * 2 - 1, -(py / view.height) * 2 + 1, 0.5).unproject(camera).sub(camera.position).normalize();
+  if (ray.y > -0.02) return false;
+  const t = (y - camera.position.y) / ray.y;
+  out.x = camera.position.x + ray.x * t;
+  out.z = camera.position.z + ray.z * t;
+  return true;
 }
 
 function roostWant(map, out, look) {
@@ -430,7 +485,12 @@ function updateCamera(dt, sky) {
   const rm = reducedMotion();
   let rate = 3.5;
   let lookRate = 6;
+  let chasing = false;
   const night = sky.phase === 'night' && !sky.parked && me.L && (S.mode === 'sky' || S.mode === 'mig' || S.mode === 'migresult');
+  // the moment's lean-in eases back out
+  cam.punchT = Math.max(0, cam.punchT - dt);
+  const wantPunch = cam.punchT > 0 && !rm ? cam.punchTo : 1;
+  cam.punch += (wantPunch - cam.punch) * (1 - Math.exp(-dt * (wantPunch < cam.punch ? 9 : 2.2)));
   if (S.mode === 'title' || S.mode === 'boot' || ((S.mode === 'closed' || S.mode === 'notice') && !me.L)) {
     titleWant(map, cam.wantPos, cam.wantLook);
     rate = 2;
@@ -445,15 +505,23 @@ function updateCamera(dt, sky) {
     lookRate = 1.4;
   } else if (me.L) {
     chaseWant(me.L, me.n, cam.wantPos, cam.wantLook);
+    chasing = true;
   }
+  const kick = chasing && !rm && me.L.boosting ? 0.07 : 0;
+  cam.boostKick += (kick - cam.boostKick) * (1 - Math.exp(-dt * 3));
   if (S.mode === 'takeoff' || S.mode === 'intro') {
     // a swoop from where the camera was into the chase
-    const T = S.mode === 'takeoff' ? 1.3 : 2.2;
+    const T = S.mode === 'takeoff' ? 1.4 : 2.2;
     const k = clamp(S.t / T, 0, 1);
     const e = k * k * k * (k * (k * 6 - 15) + 10);
     cam.pos.lerpVectors(cam.fromPos, cam.wantPos, e);
     cam.look.lerpVectors(cam.fromLook, cam.wantLook, e);
     if (S.mode === 'intro') cam.pos.y += Math.sin(k * Math.PI) * 25;
+  } else if (chasing) {
+    // the high camera keeps its angle: what it looks at glides after the flock, and the camera rides with it
+    cam.look.lerp(cam.wantLook, 1 - Math.exp(-dt * 3.2));
+    tmpV.copy(cam.wantPos).sub(cam.wantLook).add(cam.look);
+    cam.pos.lerp(tmpV, 1 - Math.exp(-dt * 10));
   } else {
     cam.pos.lerp(cam.wantPos, 1 - Math.exp(-dt * rate));
     cam.look.lerp(cam.wantLook, 1 - Math.exp(-dt * lookRate));
@@ -462,29 +530,37 @@ function updateCamera(dt, sky) {
   const floor = surfaceAt(map, cam.pos.x, cam.pos.z) + 2;
   if (cam.pos.y < floor) cam.pos.y = floor;
   camera.position.copy(cam.pos);
-  // shake: decaying trauma, squared, smooth
+  // shake: decaying trauma, squared, smooth, leaning the way the hit came from
   S.trauma = Math.max(0, S.trauma - dt * 1.6);
+  let sx = 0;
+  let sy = 0;
+  let sz = 0;
   if (!rm && S.trauma > 0) {
     const t = performance.now() / 1000;
-    const a = S.trauma * S.trauma * 0.7;
-    camera.position.x += a * (Math.sin(t * 31) + Math.sin(t * 17.3)) * 0.5;
-    camera.position.y += a * (Math.sin(t * 27.1) + Math.sin(t * 13.7)) * 0.5;
-    camera.position.z += a * (Math.sin(t * 23.9) + Math.sin(t * 19.1)) * 0.5;
+    const a = S.trauma * S.trauma * (chasing ? 1.4 : 0.7);
+    sx = a * ((Math.sin(t * 31) + Math.sin(t * 17.3)) * 0.5 + S.shakeDir.x * 0.6);
+    sy = a * (Math.sin(t * 27.1) + Math.sin(t * 13.7)) * 0.5;
+    sz = a * ((Math.sin(t * 23.9) + Math.sin(t * 19.1)) * 0.5 + S.shakeDir.z * 0.6);
+    camera.position.x += sx;
+    camera.position.y += sy;
+    camera.position.z += sz;
   }
   camera.up.set(0, 1, 0);
-  camera.lookAt(cam.look);
-  const chasing = me.L && (S.mode === 'sky' || S.mode === 'mig') && !night;
-  const wantRoll = chasing && !rm ? -me.L.bank * 0.22 : 0;
-  cam.roll += (wantRoll - cam.roll) * (1 - Math.exp(-dt * 5));
-  if (cam.roll) camera.rotateZ(cam.roll);
-  const kick = chasing && !rm && me.L.boosting ? 7 : 0;
-  cam.boostKick += (kick - cam.boostKick) * (1 - Math.exp(-dt * 6));
-  const fov = baseFov() + cam.boostKick;
+  tmpV.set(cam.look.x + sx * 0.5, cam.look.y + sy * 0.5, cam.look.z + sz * 0.5);
+  camera.lookAt(tmpV);
+  cam.chase += ((chasing || S.mode === 'takeoff' ? 1 : 0) - cam.chase) * (1 - Math.exp(-dt * 3));
+  const fov = baseFov() + (playFov() - baseFov()) * cam.chase;
   if (Math.abs(fov - camera.fov) > 0.01) {
     camera.fov = fov;
     camera.updateProjectionMatrix();
   }
   camera.updateMatrixWorld();
+}
+
+/** Lean in on a big moment: the camera closes to k of its distance for t seconds. */
+function punchIn(k = 0.86, t = 0.5) {
+  cam.punchTo = Math.min(cam.punchT > 0 ? cam.punchTo : 1, k);
+  cam.punchT = Math.max(cam.punchT, t);
 }
 
 function startSwoop() {
@@ -495,7 +571,7 @@ function startSwoop() {
 // ------------------------------------------------------------------ hints (2-5 words, by device)
 
 const HINTS = {
-  steer: () => (input.last === 'touch' || touch() ? 'Steer with the stick' : input.last === 'keys' ? 'Steer with A and D' : 'Steer with the mouse'),
+  steer: () => (input.last === 'touch' || touch() ? 'Point the stick to fly' : input.last === 'keys' ? 'Fly with WASD' : 'Point where to fly'),
   gather: () => 'Gather the grey birds',
   goal: () => 'Biggest flock at sundown wins',
   boost: () => (input.last === 'touch' || touch() ? 'Hold Boost to speed up' : input.last === 'keys' ? 'Hold Space to boost' : 'Hold the mouse to boost'),
@@ -1229,13 +1305,14 @@ function buildHud(sky) {
 
 // ------------------------------------------------------------------ drawing
 
-const leaders = Array.from({ length: 48 }, () => ({ x: 0, y: 0, z: 0, yaw: 0, pitch: 0, bank: 0, color: new THREE.Color(), scale: 1.6, flap: 11, phase: 0 }));
+const leaders = Array.from({ length: 48 }, () => ({ x: 0, y: 0, z: 0, yaw: 0, pitch: 0, bank: 0, color: new THREE.Color(), scale: 4.4, flap: 11, phase: 0, species: 0, flair: 0 }));
 const leaderList = [];
 const hawkAt = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0, bank: 0, folded: false, visible: false };
-const HAWK_COLOR = new THREE.Color(PALETTE.hawk);
+const hawkDraw = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0, bank: 0, scale: 9, flap: 7, fold: 0, phase: 0 };
 const ASH = new THREE.Color(PALETTE.ash);
 const slotColors = SLOTS.map((s) => new THREE.Color(s.hex));
 const focus = new THREE.Vector3();
+const LEAD_SCALE = 4.4;
 
 function addLeader(x, y, z, yaw, color, o = {}) {
   if (leaderList.length >= leaders.length) return;
@@ -1247,11 +1324,20 @@ function addLeader(x, y, z, yaw, color, o = {}) {
   b.pitch = o.pitch ?? 0;
   b.bank = o.bank ?? 0;
   b.color.copy(color);
-  b.scale = o.scale ?? 2.4;
+  b.scale = o.scale ?? LEAD_SCALE;
   b.flap = o.flap ?? 11;
   b.phase = o.phase ?? leaderList.length * 1.3;
+  b.species = o.species ?? 0;
+  b.flair = o.flair ?? 0;
   leaderList.push(b);
 }
+
+/** A flock's look: its lead bird's species and its flair (mine from the profile, others' from what their page says). */
+function lookOf(f) {
+  if (f.id === myId()) return { species: equipped.species, flair: equipped.flair, trail: equipped.trail };
+  return f.look ?? DEFAULT_LOOK;
+}
+const DEFAULT_LOOK = { species: 0, flair: 0, trail: 0 };
 
 function drawLeaders(sky) {
   leaderList.length = 0;
@@ -1261,25 +1347,32 @@ function drawLeaders(sky) {
   for (const f of sky.flocks.values()) {
     const mine = f.id === id && me.L;
     const color = slotColors[f.slot];
+    const look = lookOf(f);
+    birds.flairOf.set(f.id, look.flair);
     const w = night ? S.roostMap?.get(f.id) : undefined;
     if (w !== undefined) {
       // roosting: the lead bird sits at the head of its wire
       const p = wirePoint(sky.map.roost.wires[w], 0.03);
       const r = sky.map.roost;
       const yaw = Math.atan2(r.camera[2] - r.z, r.camera[0] - r.x);
-      addLeader(p[0], p[1] + 0.25, p[2], yaw, color, { flap: -1 });
+      addLeader(p[0], p[1] + 0.25, p[2], yaw, color, { flap: -1, species: look.species, flair: look.flair });
       continue;
     }
     const L = mine ? me.L : f.leader;
     const pitch = mine ? Math.atan2(L.vy, Math.max(4, L.speed)) * 0.8 : 0;
-    addLeader(L.x, L.y, L.z, L.yaw, color, { pitch, bank: mine ? -L.bank : -(L.bank ?? 0), flap: L.boosting ? 17 : 11 });
-    if (mine) fx.addRibbons(me.trail, me.t, L, color);
-    else fx.addRibbons(f.trail, sky.clock, L, color);
+    addLeader(L.x, L.y, L.z, L.yaw, color, { pitch, bank: L.bank ?? 0, flap: L.boosting ? 17 : 11, species: look.species, flair: look.flair });
+    if (mine) fx.addRibbons(me.trail, me.t, L, color, look.trail);
+    else fx.addRibbons(f.trail, sky.clock, L, color, look.trail);
   }
   fx.endRibbons();
   // the hawk
   fx.hawkPose(sky, hawkAt);
-  if (hawkAt.visible) addLeader(hawkAt.x, hawkAt.y, hawkAt.z, hawkAt.yaw, HAWK_COLOR, { scale: 6, pitch: hawkAt.pitch, bank: hawkAt.bank, flap: hawkAt.folded ? -1 : 7 });
+  if (hawkAt.visible) {
+    Object.assign(hawkDraw, { x: hawkAt.x, y: hawkAt.y, z: hawkAt.z, yaw: hawkAt.yaw, pitch: hawkAt.pitch, bank: hawkAt.bank });
+    hawkDraw.fold += ((hawkAt.folded ? 1 : 0) - hawkDraw.fold) * 0.2;
+    hawkDraw.flap = hawkAt.folded ? 0 : 6;
+    birds.setHawk(hawkDraw);
+  } else birds.setHawk(null);
   // the aim ring on my flock while the hawk hunts it
   const H = sky.hawk;
   if ((H.phase === 'circle' || H.phase === 'stoop') && H.target === id && me.L) fx.setAim(me.puffs[0], me.puffs[0].r || 3);
@@ -1288,7 +1381,7 @@ function drawLeaders(sky) {
   if (!S.mig && (S.mode === 'title' || S.mode === 'takeoff' || S.mode === 'boot' || (S.mode === 'closed' && !me.L))) {
     for (const b of TITLE_BIRDS) {
       if (b.flying && b.t > 2) continue;
-      addLeader(b.x, b.y, b.z, b.yaw, ASH, { scale: 1.5, flap: b.flying ? 15 : -1, phase: b.phase });
+      addLeader(b.x, b.y, b.z, b.yaw, ASH, { scale: 2.3, flap: b.flying ? 15 : -1, phase: b.phase, species: -1 });
     }
   }
   birds.setLeaders(leaderList);

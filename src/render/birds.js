@@ -6,6 +6,8 @@
 
 import * as THREE from 'three';
 import { PUFF_SHARE, SLOTS, GATHER } from '../sim/config.js';
+import { songbirdGeometry, raptorGeometry, birdUniforms, birdLayer } from './birdmesh.js';
+import { SPECIES } from '../sim/species.js';
 import { newPuffs } from '../sim/flock.js';
 import { wheelPos } from '../sim/maps.js';
 
@@ -14,9 +16,13 @@ const FLOCK_CAP = 760;
 const WHEEL_CAP = 70;
 const CLOUD_CAP = 90;
 const STEP = 1 / 30;
-const SIZE = 1.45; // a flock bird's size (the mesh is about 0.8 u long, 1 u across)
+const SIZE = 2.1; // a flock bird's size (the mesh is about 0.95 u long, 1.3 u across)
 const ASH = new THREE.Color('#8D8794');
 const INK = new THREE.Color('#231A2E');
+const LOOK_KEYS = ['back', 'belly', 'head', 'accent', 'beak'];
+const SPECIES_LOOK = SPECIES.map((sp) => ({ c: sp.c.map((h) => new THREE.Color(h)), shape: sp.shape }));
+const WILD_LOOK = { c: ['#8D8794', '#5E5866', '#7A7482', '#4E4856', '#C8A050'].map((h) => new THREE.Color(h)), shape: [1, 0, 1, 0] };
+const HAWK_LOOK = { c: ['#5A3626', '#E8D4B4', '#4A2C20', '#2E1C16', '#E8B83A'].map((h) => new THREE.Color(h)), shape: [1, 0, 1, 0] };
 const FREE = 0;
 const IN_FLOCK = 1;
 const IN_WHEEL = 2;
@@ -29,169 +35,18 @@ const CUM = (() => {
   return c;
 })();
 
-// ------------------------------------------------------------------ the bird mesh and its shader
-
-function birdGeometry() {
-  // local space: +x forward, +y up, +z right. side: -1 left wing, +1 right wing, 0 body; tone: 0 ink, 1 colour
-  const v = [];
-  const add = (p, side, tone) => v.push(p[0], p[1], p[2], side, tone);
-  const tri = (a, b, c, side = 0, ta = 0, tb = 0, tc = 0) => {
-    add(a, side, ta);
-    add(b, side, tb);
-    add(c, side, tc);
-  };
-  const nose = [0.34, 0.01, 0];
-  const tail = [-0.26, 0.02, 0];
-  const top = [0.02, 0.08, 0];
-  const bot = [0.02, -0.06, 0];
-  const L = [0.02, 0, -0.075];
-  const R = [0.02, 0, 0.075];
-  // the back takes the flock's colour, the belly stays dark: a flock reads as its colour from any side
-  const tn = 0.55;
-  const tt = 0.95;
-  const ts = 0.7;
-  const tb = 0.15;
-  tri(nose, top, L, 0, tn, tt, ts);
-  tri(nose, R, top, 0, tn, ts, tt);
-  tri(nose, L, bot, 0, tn, ts, tb);
-  tri(nose, bot, R, 0, tn, tb, ts);
-  tri(tail, L, top, 0, tn, ts, tt);
-  tri(tail, top, R, 0, tn, tt, ts);
-  tri(tail, bot, L, 0, tn, tb, ts);
-  tri(tail, R, bot, 0, tn, ts, tb);
-  // tail fan
-  tri([-0.22, 0.02, 0], [-0.44, 0.02, -0.11], [-0.44, 0.02, 0.11], 0, 0.4, 0.8, 0.8);
-  // wings: root on the body, tip swept back
-  for (const s of [-1, 1]) {
-    const rf = [0.1, 0.02, 0.05 * s];
-    const rb = [-0.1, 0.02, 0.05 * s];
-    const mf = [0.06, 0.02, 0.3 * s];
-    const tip = [-0.12, 0.02, 0.5 * s];
-    tri(rf, mf, rb, s, 0.9, 1, 0.9);
-    tri(rb, mf, tip, s, 0.9, 1, 0.55);
-  }
-  const g = new THREE.BufferGeometry();
-  const arr = new Float32Array(v);
-  const ib = new THREE.InterleavedBuffer(arr, 5);
-  g.setAttribute('position', new THREE.InterleavedBufferAttribute(ib, 3, 0));
-  g.setAttribute('side', new THREE.InterleavedBufferAttribute(ib, 1, 3));
-  g.setAttribute('tone', new THREE.InterleavedBufferAttribute(ib, 1, 4));
-  return g;
-}
-
-const birdVert = /* glsl */ `
-attribute float side;
-attribute float tone;
-attribute vec3 iPos;
-attribute vec3 iFwd;
-attribute vec3 iColor;
-attribute vec4 iAnim; // phase, flap rate (< 0: perched), scale, bank
-uniform float time;
-varying vec3 vColor;
-varying vec3 vNormal;
-varying float vTone;
-#include <fog_pars_vertex>
-void main() {
-  vec3 f = normalize(iFwd + vec3(0.0, 0.0, 1e-5));
-  vec3 r = cross(f, vec3(0.0, 1.0, 0.0));
-  float rl = length(r);
-  r = rl < 1e-3 ? vec3(0.0, 0.0, 1.0) : r / rl;
-  vec3 u = cross(r, f);
-  float cb = cos(iAnim.w);
-  float sb = sin(iAnim.w);
-  vec3 r2 = r * cb + u * sb;
-  vec3 u2 = u * cb - r * sb;
-  vec3 p = position;
-  vec3 n = vec3(0.0, 1.0, 0.0);
-  float perched = step(iAnim.y, 0.0);
-  if (side != 0.0) {
-    float span = abs(p.z);
-    float t = time * iAnim.y + iAnim.x;
-    // flap, with glides mixed in by a slow wave
-    float glide = smoothstep(0.55, 0.9, sin(time * 0.37 + iAnim.x * 3.1));
-    float a = mix(sin(t) * 0.8 + 0.15, 0.12, glide);
-    a = mix(a, -1.15, perched);
-    float reach = mix(1.0, 0.32, perched);
-    p.y += span * sin(a) * reach;
-    p.z = side * span * cos(a) * reach;
-    n = vec3(0.0, cos(a), -side * sin(a));
-  }
-  if (perched > 0.5) p.y += 0.02 * sin(time * 2.0 + iAnim.x * 5.0);
-  p *= iAnim.z;
-  vec3 world = iPos + f * p.x + u2 * p.y + r2 * p.z;
-  vNormal = normalize(f * n.x + u2 * n.y + r2 * n.z);
-  vColor = iColor;
-  vTone = tone;
-  vec4 mvPosition = viewMatrix * vec4(world, 1.0);
-  gl_Position = projectionMatrix * mvPosition;
-  #include <fog_vertex>
-}`;
-
-const birdFrag = /* glsl */ `
-uniform vec3 sunDir;
-uniform vec3 sunColor;
-uniform vec3 hemiSky;
-uniform vec3 hemiGround;
-uniform vec3 ink;
-uniform float glow;
-varying vec3 vColor;
-varying vec3 vNormal;
-varying float vTone;
-#include <fog_pars_fragment>
-void main() {
-  vec3 n = normalize(vNormal);
-  float up = n.y;
-  vec3 base = mix(ink, vColor, vTone);
-  // a two-sided light: tops lit by the sun and sky, undersides darker
-  vec3 amb = mix(hemiGround, hemiSky, up * 0.5 + 0.5);
-  float d = abs(dot(n, sunDir));
-  vec3 col = base * (amb * 0.75 + sunColor * d * 0.55) + vColor * vTone * (0.3 + glow * 0.25);
-  gl_FragColor = vec4(col, 1.0);
-  #include <tonemapping_fragment>
-  #include <colorspace_fragment>
-  #include <fog_fragment>
-}`;
-
-function makeLayer(geometry, uniforms, count) {
-  const g = new THREE.InstancedBufferGeometry();
-  g.setAttribute('position', geometry.getAttribute('position'));
-  g.setAttribute('side', geometry.getAttribute('side'));
-  g.setAttribute('tone', geometry.getAttribute('tone'));
-  const pos = new THREE.InstancedBufferAttribute(new Float32Array(count * 3), 3);
-  const fwd = new THREE.InstancedBufferAttribute(new Float32Array(count * 3), 3);
-  const color = new THREE.InstancedBufferAttribute(new Float32Array(count * 3), 3);
-  const anim = new THREE.InstancedBufferAttribute(new Float32Array(count * 4), 4);
-  for (const a of [pos, fwd, color, anim]) a.setUsage(THREE.DynamicDrawUsage);
-  g.setAttribute('iPos', pos);
-  g.setAttribute('iFwd', fwd);
-  g.setAttribute('iColor', color);
-  g.setAttribute('iAnim', anim);
-  g.instanceCount = 0;
-  const mat = new THREE.ShaderMaterial({ uniforms, vertexShader: birdVert, fragmentShader: birdFrag, fog: true, side: THREE.DoubleSide });
-  const mesh = new THREE.Mesh(g, mat);
-  mesh.frustumCulled = false;
-  return { mesh, g, pos, fwd, color, anim };
-}
-
 // ------------------------------------------------------------------ the birds
 
 export class Birds {
-  constructor(scene) {
-    this.uniforms = {
-      time: { value: 0 },
-      sunDir: { value: new THREE.Vector3(0, 1, 0) },
-      sunColor: { value: new THREE.Color() },
-      hemiSky: { value: new THREE.Color() },
-      hemiGround: { value: new THREE.Color() },
-      ink: { value: INK.clone() },
-      glow: { value: 0 },
-      ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
-    };
-    const geo = birdGeometry();
-    this.fly = makeLayer(geo, this.uniforms, MAX);
-    this.perch = makeLayer(geo, this.uniforms, 2400);
-    this.lead = makeLayer(geo, this.uniforms, 48);
-    for (const l of [this.fly, this.perch, this.lead]) scene.add(l.mesh);
+  constructor(scene, { lod = 'high', shadows = true } = {}) {
+    this.uniforms = birdUniforms();
+    const geo = songbirdGeometry(lod);
+    this.fly = birdLayer(geo, this.uniforms, MAX, { shadows });
+    this.perch = birdLayer(geo, this.uniforms, 2400, { shadows });
+    this.lead = birdLayer(songbirdGeometry('high'), this.uniforms, 48, { lead: true, shadows });
+    this.hawk = birdLayer(raptorGeometry(), this.uniforms, 2, { lead: true, shadows });
+    for (const l of [this.fly, this.perch, this.lead, this.hawk]) scene.add(l.mesh);
+    this.flairOf = new Map(); // flock id → flair index
 
     // the pool
     const f = () => new Float32Array(MAX);
@@ -223,6 +78,11 @@ export class Birds {
     this.flash = f();
     this.age = f();
     this.scale = f();
+    this.bank = f(); // roll into the turn, eased
+    this.fx_ = f(); // facing, eased toward the velocity
+    this.fy_ = f();
+    this.fz_ = f();
+    this.beat = f(); // 0 cruising → 1 hurrying (faster wingbeats, no glides)
     this.seat = new Int32Array(MAX); // a flock bird's index in its flock (its place on a roost wire)
     this.sat = new Uint8Array(MAX); // 1: sitting on a roost wire
     this.roost = null;
@@ -291,8 +151,13 @@ export class Birds {
     this.delay[i] = 0;
     this.flash[i] = 0;
     this.age[i] = 0;
-    this.scale[i] = SIZE;
+    this.scale[i] = SIZE * (0.9 + this.rand() * 0.2);
     this.sat[i] = 0;
+    this.bank[i] = 0;
+    this.fx_[i] = this.vx[i];
+    this.fy_[i] = this.vy[i] * 0.6;
+    this.fz_[i] = this.vz[i];
+    this.beat[i] = 0.5;
     this.live.push(i);
     return i;
   }
@@ -533,12 +398,16 @@ export class Birds {
       L.color.array[k * 3 + 2] = ASH.b;
       L.anim.array[k * 4] = (s * 1.618) % 6.283;
       L.anim.array[k * 4 + 1] = -1;
-      L.anim.array[k * 4 + 2] = 1.3;
+      L.anim.array[k * 4 + 2] = SIZE * 0.92;
       L.anim.array[k * 4 + 3] = 0;
+      L.fx.array[k * 4] = 0;
+      L.fx.array[k * 4 + 1] = 0;
+      L.fx.array[k * 4 + 2] = 0;
+      L.fx.array[k * 4 + 3] = 0;
       k++;
     }
     L.g.instanceCount = k;
-    for (const a of [L.pos, L.fwd, L.color, L.anim]) a.needsUpdate = true;
+    for (const a of L.attrs) a.needsUpdate = true;
   }
 
   /** Bring a flock's drawn birds to its count, from what's near (wheels, clouds) before making any from nothing. */
@@ -801,6 +670,16 @@ export class Birds {
       this.vy[i] *= k;
       this.vz[i] *= k;
     }
+    // facing eases after the velocity; the bird rolls into the turn and beats harder when it hurries or climbs
+    this.fx_[i] += (this.vx[i] - this.fx_[i]) * 0.3;
+    this.fy_[i] += (this.vy[i] * 0.5 - this.fy_[i]) * 0.3;
+    this.fz_[i] += (this.vz[i] - this.fz_[i]) * 0.3;
+    const hs = Math.hypot(this.vx[i], this.vz[i]) + 1e-3;
+    const lat = (-ax * this.vz[i] + az * this.vx[i]) / hs;
+    const tb = Math.max(-1.1, Math.min(1.1, -lat * 0.035));
+    this.bank[i] += (tb - this.bank[i]) * 0.18;
+    const want = Math.max(0, Math.min(1, (sp - 15) / 18 + Math.max(0, this.vy[i]) / 10));
+    this.beat[i] += (want - this.beat[i]) * 0.1;
     this.px[i] += this.vx[i] * h;
     this.py[i] += this.vy[i] * h;
     this.pz[i] += this.vz[i] * h;
@@ -851,6 +730,7 @@ export class Birds {
     const F = L.fwd.array;
     const C = L.color.array;
     const A = L.anim.array;
+    const X = L.fx.array;
     for (let q = 0; q < this.live.length; q++) {
       const i = this.live[q];
       if (this.kind[i] === FREE || this.scale[i] <= 0.02) continue;
@@ -859,27 +739,26 @@ export class Birds {
       P[k * 3 + 2] = this.qz[i] + (this.pz[i] - this.qz[i]) * alpha;
       if (stepped) {
         const sat = this.sat[i] && this.kind[i] === IN_FLOCK;
-        F[k * 3] = sat ? this.roostN.x : this.vx[i];
-        F[k * 3 + 1] = sat ? 0.25 : this.vy[i] * 0.6;
-        F[k * 3 + 2] = sat ? this.roostN.z : this.vz[i];
-        const fl = this.flash[i];
-        C[k * 3] = this.cr[i] + (1 - this.cr[i]) * fl;
-        C[k * 3 + 1] = this.cg[i] + (1 - this.cg[i]) * fl;
-        C[k * 3 + 2] = this.cb[i] + (1 - this.cb[i]) * fl;
+        F[k * 3] = sat ? this.roostN.x : this.fx_[i];
+        F[k * 3 + 1] = sat ? 0.25 : this.fy_[i];
+        F[k * 3 + 2] = sat ? this.roostN.z : this.fz_[i];
+        C[k * 3] = this.cr[i];
+        C[k * 3 + 1] = this.cg[i];
+        C[k * 3 + 2] = this.cb[i];
         A[k * 4] = this.phase[i];
-        A[k * 4 + 1] = sat ? -1 : this.rate[i];
+        A[k * 4 + 1] = sat ? -1 : this.rate[i] * (1 + this.beat[i]);
         A[k * 4 + 2] = this.scale[i];
-        A[k * 4 + 3] = 0;
+        A[k * 4 + 3] = sat ? 0 : this.bank[i];
+        X[k * 4] = this.flash[i];
+        X[k * 4 + 1] = this.kind[i] === IN_FLOCK ? this.flairOf.get(this.flockList[this.owner[i]]?.id) ?? 0 : 0;
+        X[k * 4 + 2] = this.beat[i] > 0.15 ? -1 : 0;
+        X[k * 4 + 3] = 0;
       }
       k++;
     }
     L.g.instanceCount = k;
     L.pos.needsUpdate = true;
-    if (stepped) {
-      L.fwd.needsUpdate = true;
-      L.color.needsUpdate = true;
-      L.anim.needsUpdate = true;
-    }
+    if (stepped) for (const a of L.attrs) a.needsUpdate = true;
   }
 
   /** Light the birds like the scene. */
@@ -894,29 +773,56 @@ export class Birds {
     u.fogDensity.value = scene.fog.density;
   }
 
-  /** The lead birds (and the hawk): [{ x, y, z, yaw, pitch, bank, color, scale, flap }]. */
+  /**
+   * The lead birds and rare birds: [{ x, y, z, yaw, pitch, bank, color, scale, flap, species, fold, flash }]. Each is drawn as
+   * its species (the starling unless it says).
+   */
   setLeaders(list) {
-    const L = this.lead;
+    this.fillLead(this.lead, list);
+  }
+
+  /** The hawk (or nothing): { x, y, z, yaw, pitch, bank, scale, flap, fold }. */
+  setHawk(h) {
+    this.fillLead(this.hawk, h ? [h] : [], HAWK_LOOK);
+  }
+
+  fillLead(L, list, look = null) {
     let k = 0;
     for (const b of list) {
-      if (k >= L.pos.count) break;
+      if (k >= L.count) break;
       L.pos.array[k * 3] = b.x;
       L.pos.array[k * 3 + 1] = b.y;
       L.pos.array[k * 3 + 2] = b.z;
-      L.fwd.array[k * 3] = Math.cos(b.yaw) * Math.cos(b.pitch ?? 0);
+      const cp = Math.cos(b.pitch ?? 0);
+      L.fwd.array[k * 3] = Math.cos(b.yaw) * cp;
       L.fwd.array[k * 3 + 1] = Math.sin(b.pitch ?? 0);
-      L.fwd.array[k * 3 + 2] = Math.sin(b.yaw) * Math.cos(b.pitch ?? 0);
-      L.color.array[k * 3] = b.color.r;
-      L.color.array[k * 3 + 1] = b.color.g;
-      L.color.array[k * 3 + 2] = b.color.b;
+      L.fwd.array[k * 3 + 2] = Math.sin(b.yaw) * cp;
+      L.color.array[k * 3] = b.color?.r ?? 1;
+      L.color.array[k * 3 + 1] = b.color?.g ?? 1;
+      L.color.array[k * 3 + 2] = b.color?.b ?? 1;
       L.anim.array[k * 4] = b.phase ?? k;
       L.anim.array[k * 4 + 1] = b.flap ?? 11;
-      L.anim.array[k * 4 + 2] = b.scale ?? 2.4;
+      L.anim.array[k * 4 + 2] = b.scale ?? 4;
       L.anim.array[k * 4 + 3] = b.bank ?? 0;
+      L.fx.array[k * 4] = b.flash ?? 0;
+      L.fx.array[k * 4 + 1] = b.flair ?? 0;
+      L.fx.array[k * 4 + 2] = b.glide ?? 0;
+      L.fx.array[k * 4 + 3] = b.fold ?? 0;
+      const sp = look ?? (b.species === -1 ? WILD_LOOK : SPECIES_LOOK[b.species ?? 0] ?? SPECIES_LOOK[0]);
+      for (let c = 0; c < 5; c++) {
+        const arr = L[LOOK_KEYS[c]].array;
+        arr[k * 3] = sp.c[c].r;
+        arr[k * 3 + 1] = sp.c[c].g;
+        arr[k * 3 + 2] = sp.c[c].b;
+      }
+      L.shape.array[k * 4] = sp.shape[0];
+      L.shape.array[k * 4 + 1] = sp.shape[1];
+      L.shape.array[k * 4 + 2] = sp.shape[2];
+      L.shape.array[k * 4 + 3] = sp.shape[3];
       k++;
     }
     L.g.instanceCount = k;
-    for (const a of [L.pos, L.fwd, L.color, L.anim]) a.needsUpdate = true;
+    for (const a of L.attrs) a.needsUpdate = true;
   }
 
   /** How many birds of a flock are drawn (for tests and the poster). */
