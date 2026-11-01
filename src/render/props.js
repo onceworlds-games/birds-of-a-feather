@@ -84,9 +84,10 @@ function lighthouse(B, p) {
     B.color(k % 2 ? '#C0563A' : '#F4EBDD').surf(SURF.plain);
     B.cyl(p.x, p.y + k * 3.6, p.z, 2.6 - k * 0.18, 2.6 - (k + 1) * 0.18, 3.6, 14, false);
   }
-  // the gallery and its rail
-  B.color('#2B2330');
+  // the gallery (painted iron) and its rail
+  B.color('#6E7884');
   B.cyl(p.x, p.y + 21.4, p.z, 3.4, 3.4, 0.25, 16, true);
+  B.color('#2B2330');
   for (let k = 0; k < 16; k++) {
     const a = (k / 16) * Math.PI * 2;
     B.box(p.x + Math.cos(a) * 3.25, p.y + 21.65, p.z + Math.sin(a) * 3.25, 0.08, 0.8, 0.08, 0);
@@ -94,9 +95,13 @@ function lighthouse(B, p) {
   B.cyl(p.x, p.y + 22.4, p.z, 3.3, 3.3, 0.08, 16, false);
   B.color('#FFE7A8').surf(SURF.lamp);
   B.cyl(p.x, p.y + 21.65, p.z, 1.6, 1.6, 2.4, 10, false);
-  B.color('#2B2330').surf(SURF.plain);
-  B.cyl(p.x, p.y + 24, p.z, 2, 0, 2.2, 10, false);
-  B.cyl(p.x, p.y + 26, p.z, 0.08, 0.02, 1.2, 4, false);
+  // a red lantern roof and its finial
+  B.color('#B8402F').surf(SURF.plain);
+  B.cyl(p.x, p.y + 24, p.z, 2.1, 1.2, 0.9, 12, false);
+  B.cyl(p.x, p.y + 24.9, p.z, 1.2, 0, 1.3, 12, false);
+  B.color('#2B2330');
+  B.cyl(p.x, p.y + 26.1, p.z, 0.08, 0.02, 1.2, 4, false);
+  B.box(p.x, p.y + 26.3, p.z, 0.35, 0.35, 0.35, 0);
 }
 
 function windmill(B, p) {

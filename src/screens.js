@@ -249,8 +249,8 @@ export class Screens {
         const to = level < L1.level ? 1 : L1.share;
         const t0 = performance.now();
         const dur = 260 + (to - from) * 700;
-        const frame = (now) => {
-          const k = Math.min(1, (now - t0) / dur);
+        const frame = () => {
+          const k = Math.min(1, (performance.now() - t0) / dur);
           const e = 1 - (1 - k) * (1 - k);
           bar.fill.style.width = `${((from + (to - from) * e) * 100).toFixed(1)}%`;
           if (k < 1) {

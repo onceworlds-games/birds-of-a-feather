@@ -572,11 +572,13 @@ All rendered by the game itself in poster mode (`?poster=<name>`: fixed seed, th
 - **Icon:** a Cobalt flock curling behind its lead bird in front of a big sun's disc. No text.
 - **Badges** (16): each a bold symbol on a coloured disc (a bird on a wire, a hawk's head, a thermal spiral, feathers, a star
   over a perched bird, a calendar of sunsets...).
-- **Trailer** (29 s, 1280×720, real play on autoplay: a Hard hunter's mind flies your bird): 0-11 s your flock over the
-  rooftops and fields in gold light, count, sun clock and board in view, cutting rivals' tails ("thicker here") and growing
-  from 300 to 600 (the goal); 11-22 s dusk, the clock counting down from 0:10, the hawk's aim ring on your flock, "Dodged!",
-  the sun on the sea; 22-27 s sundown, the flocks landing on the wires, then 2 s of "You: biggest flock at sundown"; 27-29 s
-  the title, the name over the live sky.
+- **Trailer** (33 s, 1280×720, real play on autoplay, every shot from the game's own frames and sound): 0-3 s your small
+  flock over Saltmere's roofs with the hawk swooping past and "Biggest flock at sundown wins"; 3-6 s gathering round the
+  windmill in gold light (`Chorus ×2`); 6-9 s a White Raven caught off the boats (+400, a new bird, the board turns to you);
+  9-12 s dusk, the hawk's ring on your 494 and its strike; 12-17 s Redrock's gorge, Stormfield's fields, Lantern City's lit
+  towers; 17-26 s the last seconds (`Thermal`, `Slingshot`), sundown, the flocks swooping to the wires, "You: biggest flock at
+  sundown, 555", the tally filling levels; a glimpse of the Aviary; the unlocks (trails, flair); 31-33 s the name over the
+  wires at a pink dawn. The music is the game's own score, the effects each shot's own.
 
 ## Originality check
 

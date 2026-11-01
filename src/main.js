@@ -73,7 +73,7 @@ const hud = new Hud(hudCanvas);
 const audio = new Audio();
 const screens = new Screens(uiRoot, audio);
 const input = new Input(canvas, ow);
-const autopilot = AUTO ? new Autopilot('hunter') : null;
+const autopilot = AUTO ? new Autopilot(['hunter', 'gatherer', 'drifter'].includes(params.get('pilot')) ? params.get('pilot') : 'hunter') : null;
 
 let world = null;
 function setWorld(mapId) {
@@ -324,6 +324,12 @@ function steer(dt, sky) {
   if (autopilot) {
     const f = sky.flocks.get(myId());
     const a = autopilot.input(sky, f, L);
+    // the trailer can send it after the nearest rare bird still on its landmark
+    const rare = S.seekRare !== false && S.seekRare !== undefined ? nearestRare(sky, L, S.seekRare === true ? 0 : S.seekRare) : null;
+    if (rare) {
+      a.turn = clamp(angleDiff(L.yaw, Math.atan2(rare.z - L.z, rare.x - L.x)) / 0.4, -1, 1);
+      a.boost = Math.hypot(rare.x - L.x, rare.z - L.z) > 40;
+    }
     me.stick.turn = a.turn;
     me.stick.climb = 0;
     me.stick.boost = a.boost;
@@ -1746,6 +1752,11 @@ function buildHud(sky) {
     r.me = f.id === id;
     rows.push(r);
   }
+  // other flocks' tags under the board fade, so the board stays readable
+  const bx0 = lay.right - lay.boardW - 40;
+  const by0 = (lay.boardTop ?? lay.top) - 10;
+  const by1 = by0 + 26 + rows.length * 30;
+  for (const t of tags) if (!t.me && t.x > bx0 && t.y > by0 && t.y < by1 + 20) t.alpha *= 0.2;
   // the stamina ring under my bird
   const L = me.L;
   project(L.x, L.y - 0.5, L.z, pb);
@@ -2004,9 +2015,11 @@ function tick(dt) {
   });
 }
 
+// the page's own clock, not the frame's timestamp: they agree in a browser, and recorded frames keep their pace
 let last = performance.now();
-function loop(t) {
+function loop() {
   requestAnimationFrame(loop);
+  const t = performance.now();
   const dt = clamp((t - last) / 1000, 0, 0.1);
   last = t;
   if (document.hidden) return;
@@ -2077,6 +2090,13 @@ async function boot() {
   cam.look.fromArray(net.sky.map.title.look);
   camera.position.copy(cam.pos);
   camera.lookAt(cam.look);
+  // the save and the server load while the shaders compile: a slow device (or a reload) gets back into its server at once
+  const joined = (async () => {
+    profile = await loadProfile();
+    syncLook();
+    if (S.mode === 'title') titleScreen();
+    return joinRoom();
+  })();
   // compile the shaders before the first frame, off the page's thread where the browser can
   try {
     await view.renderer.compileAsync(scene, camera);
@@ -2096,10 +2116,7 @@ async function boot() {
     sdk(() => ow.on('pause', () => pauseMig()));
     sdk(() => ow.on('reserved', () => layout()));
   }
-  profile = await loadProfile();
-  syncLook();
-  if (S.mode === 'title') titleScreen();
-  const ok = await joinRoom();
+  const ok = await joined;
   await fontsReady;
   if (!ok) {
     closeRoom('Connection lost', 'Rejoin');
@@ -2138,6 +2155,34 @@ async function boot() {
         placeLeader(x, z, yaw, 40, sky.map);
         cam.pos.set(x - Math.cos(yaw) * 16, 46, z - Math.sin(yaw) * 16);
       },
+      say: (text, dur = 3, at = 0) => {
+        hud.showHint(text, dur);
+        hud.hint.t = at;
+      },
+      // true: the nearest rare bird; a number: the nearest of at least that rarity; false: stop
+      seekRare: (on = true) => {
+        S.seekRare = on;
+      },
+      rares: () => (activeSky().rares ?? []).map((r) => [SPECIES[r.species].name, SPECIES[r.species].rarity, Math.round(r.x), Math.round(r.z), r.by ?? '']),
+      card: nameCard,
+      // how far ahead my flock is of the next biggest (negative: behind)
+      lead: () => {
+        const mine = myFlock();
+        let top = 0;
+        for (const f of activeSky().flocks.values()) if (f !== mine) top = Math.max(top, f.n);
+        return (mine?.n ?? 0) - top;
+      },
+      storm: () => (activeSky().storm ? activeSky().stormFront() : null),
+      hawk: () => {
+        const H = activeSky().hawk;
+        return { phase: H.phase, me: H.target === myId(), next: H.nextAt };
+      },
+      // the trailer's sound in two takes: the music alone, the effects alone
+      mix: ({ music = 1, fx = 1 } = {}) => {
+        if (audio.mus) audio.mus.gain.value = 0.4 * music;
+        if (audio.fx) audio.fx.gain.value = 0.9 * fx;
+      },
+      rivals: (skill) => net.setSkill(skill),
       give: ({ xp, species, equip: e } = {}) => {
         if (xp) profile.xp = xp;
         for (const id of species ?? []) profile.aviary[id] = (profile.aviary[id] ?? 0) + 1;
@@ -2147,6 +2192,39 @@ async function boot() {
     };
     if (params.get('fly') !== '0') setTimeout(() => S.mode === 'title' && fly(), 600);
   }
+}
+
+function nearestRare(sky, L, minRarity = 0) {
+  let best = null;
+  let bd = Infinity;
+  for (const r of sky.rares ?? []) {
+    if (r.by || (SPECIES[r.species]?.rarity ?? 0) < minRarity) continue;
+    const d = Math.hypot(r.x - L.x, r.z - L.z);
+    if (d < bd) {
+      bd = d;
+      best = r;
+    }
+  }
+  return best;
+}
+
+/** Autoplay only: the game's name over the play view, the HUD hidden (the trailer's last shot). */
+function nameCard(on) {
+  document.getElementById('hud').style.visibility = on ? 'hidden' : '';
+  document.getElementById('ui').style.visibility = on ? 'hidden' : '';
+  document.querySelector('.name-card')?.remove();
+  if (!on) return;
+  const card = document.createElement('div');
+  card.className = 'name-card';
+  const h = document.createElement('h1');
+  h.className = 'game-name';
+  for (const word of ['Birds', 'of a', 'Feather']) {
+    const sp = document.createElement('span');
+    sp.textContent = word;
+    h.appendChild(sp);
+  }
+  card.appendChild(h);
+  document.body.appendChild(card);
 }
 
 /** Autoplay only: run the game fast for `sec` seconds without drawing (the trailer jumps to its moments). */
