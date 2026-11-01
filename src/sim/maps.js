@@ -349,6 +349,11 @@ function finish(map, maxSlots, seed) {
   }
   map.perches = perches;
   map.groups = groupList;
+  // landmarks for rare birds: the first spot of every ring on a spire, a mast, a lighthouse, a mill, a butte, a tank
+  map.landmarks = groups
+    .filter((g) => g.kind === 'special')
+    .map((g) => ({ x: g.pts[0][0], y: g.pts[0][1], z: g.pts[0][2] }))
+    .sort((a, b) => a.x - b.x || a.z - b.z);
   delete map.groupsRaw;
   // perch index: slots by 8 u cell
   const cells = PERCH_CELLS * PERCH_CELLS;

@@ -1,7 +1,8 @@
 // What travels between pages, and the checks every page runs on it. Presence and messages come from other people's browsers
 // and state from the host's, so nothing here trusts its input: a bad value gives null (the last good one stays in use).
 
-import { SLOTS, PERSONALITIES, SKILLS, SKY } from './config.js';
+import { SLOTS, PERSONALITIES, SKILLS, SKY, RARE } from './config.js';
+import { SPECIES } from './species.js';
 import { MAP_IDS } from './maps.js';
 
 export const STATUSES = ['title', 'fly', 'mig'];
@@ -218,7 +219,23 @@ export function writeWild(sky) {
     p: encodeBits(sky.perched),
     w: sky.wheels.map((w) => w.n),
     l: sky.loose.slice(0, 40).map((c) => [c.id, r2(c.x), r2(c.y), r2(c.z), r2(c.vx), r2(c.vz), r2(c.t0), c.n, c.owners ?? []]),
+    r: (sky.rares ?? []).map((r) => [r.species, r2(r.x), r2(r.y), r2(r.z), r.n, r.by]),
   };
+}
+
+/** The rare birds in `host:wild` (optional): [{ species, x, y, z, n, by }] or null when malformed. */
+export function readRares(list) {
+  if (list === undefined) return [];
+  if (!Array.isArray(list) || list.length > 8) return null;
+  const out = [];
+  for (const e of list) {
+    if (!Array.isArray(e) || e.length !== 6) return null;
+    const [species, x, y, z, n, by] = e;
+    if (!int(species, 0, SPECIES.length - 1) || !num(x, -WORLD, WORLD) || !num(y, -50, 250) || !num(z, -WORLD, WORLD)) return null;
+    if (!int(n, 0, Math.max(...RARE.birds)) || (by !== null && !isFlockId(by))) return null;
+    out.push({ species, x, y, z, n, by });
+  }
+  return out;
 }
 
 /** Checks `host:wild` against this map (perch and wheel counts). Returns { rid, perched (Uint8Array), wheels, loose } or null. */
@@ -237,7 +254,9 @@ export function readWild(v, map) {
     if (!Array.isArray(owners) || owners.length > SKY.maxFlocks || !owners.every(isFlockId)) return null;
     loose.push({ id, x, y, z, vx, vz, t0, n, owners: owners.length ? owners : null });
   }
-  return { rid: v.rid, perched, wheels: v.w, loose };
+  const rares = readRares(v.r);
+  if (!rares) return null;
+  return { rid: v.rid, perched, wheels: v.w, loose, rares };
 }
 
 /** `host:results`: the standings at sundown. */
@@ -263,7 +282,9 @@ export function readResults(v) {
 export function packEvent(e) {
   switch (e.type) {
     case 'join':
-      return ['j', e.id, e.k, r2(e.x ?? 0), r2(e.z ?? 0)];
+      return ['j', e.id, e.k, r2(e.x ?? 0), r2(e.z ?? 0), e.cloud !== undefined ? 2 : e.wheel !== undefined ? 1 : 0];
+    case 'rare':
+      return ['r', e.id, e.species, e.k, r2(e.x), r2(e.y), r2(e.z)];
     case 'steal':
       return ['s', e.from, e.to, e.k, r2(e.x), r2(e.y), r2(e.z), e.lw, e.ll, e.pass, e.bigger ? 1 : 0];
     case 'shed':
@@ -284,9 +305,17 @@ export function unpackEvent(a) {
   if (!Array.isArray(a) || a.length > 12) return null;
   switch (a[0]) {
     case 'j': {
-      const [, id, k, x, z] = a;
+      const [, id, k, x, z, src] = a;
       if (!isFlockId(id) || !int(k, 1, 10000) || !num(x, -WORLD, WORLD) || !num(z, -WORLD, WORLD)) return null;
-      return { type: 'join', id, k, x, z };
+      const e = { type: 'join', id, k, x, z };
+      if (src === 1) e.wheel = -1;
+      else if (src === 2) e.cloud = -1;
+      return e;
+    }
+    case 'r': {
+      const [, id, species, k, x, y, z] = a;
+      if (!isFlockId(id) || !int(species, 0, SPECIES.length - 1) || !int(k, 0, 10000) || !P(x, y, z)) return null;
+      return { type: 'rare', id, species, k, x, y, z };
     }
     case 's': {
       const [, from, to, k, x, y, z, lw, ll, pass, bigger] = a;

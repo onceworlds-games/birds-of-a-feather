@@ -149,6 +149,7 @@ function makeNet(r) {
   net = new Net(r, {
     now,
     mapId: TEST_MAP,
+    rotate: !params.get('map'),
     on: {
       events: (list) => {
         if (!S.mig) onEvents(list, net.sky);

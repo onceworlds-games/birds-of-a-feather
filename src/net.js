@@ -19,11 +19,11 @@ export class Net {
    * room: a platform room (or `stubRoom()`); now(): ms on the platform clock.
    * on: { events(list), spawn(flock), dawn(rid), sundown(standings) } (all optional).
    */
-  constructor(room, { now, on = {}, seed, mapId = 'saltmere' } = {}) {
+  constructor(room, { now, on = {}, seed, mapId = 'saltmere', rotate = true } = {}) {
     this.room = room;
     this.now = now;
     this.on = on;
-    this.sky = new Sky({ mapId, seed: seed ?? hashString(String(Date.now())) % 1e9, judgeDelay: SKY.judgeDelay, authority: false });
+    this.sky = new Sky({ mapId, rotate, seed: seed ?? hashString(String(Date.now())) % 1e9, judgeDelay: SKY.judgeDelay, authority: false });
     this.sky.drainEvents();
     this.authority = false;
     this.dawnAt = now();
@@ -278,7 +278,9 @@ export class Net {
     if (this.stateDirty) {
       this.stateDirty = false;
       const s = W.readSky(room.state['host:sky']);
-      if (s && s.map === sky.opts.mapId) this.state = s;
+      // the host's sky moved on to another place: follow it there
+      if (s && s.map !== sky.opts.mapId) sky.setMap(s.map);
+      if (s) this.state = s;
       const r = W.readResults(room.state['host:results']);
       if (r) this.results = r;
       if (this.state) {
@@ -378,6 +380,7 @@ export class Net {
     for (let i = 0; i < w.perched.length; i++) if (w.perched[i]) sky.groupLive[map.perches.group[i]]++;
     w.wheels.forEach((n, i) => (sky.wheels[i].n = n));
     sky.loose = w.loose;
+    sky.rares = w.rares;
   }
 
   // ---------------------------------------------------------------- own flock

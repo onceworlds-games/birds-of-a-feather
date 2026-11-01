@@ -94,3 +94,29 @@ test('names are text, one line, short', () => {
   assert.equal(W.cleanName('x'.repeat(40)).length, 24);
   assert.equal(W.cleanName(5), '');
 });
+
+test('rare birds travel with the wild birds, and a bad one spoils the message', () => {
+  const sky = new Sky({ seed: 3 });
+  sky.rares[1].by = 'p42';
+  sky.rares[1].n = 0;
+  const w = JSON.parse(JSON.stringify(W.writeWild(sky)));
+  const back = W.readWild(w, sky.map);
+  assert.equal(back.rares.length, sky.rares.length);
+  assert.equal(back.rares[0].species, sky.rares[0].species);
+  assert.equal(back.rares[1].by, 'p42');
+  assert.deepEqual(W.readWild({ ...w, r: undefined }, sky.map).rares, [], 'an older host sends none');
+  for (const bad of [[[99, 0, 0, 0, 1, null]], [[1, 0, 0, 0, 1, 'x y']], [[1, 9999, 0, 0, 1, null]], [[1, 0, 0, 0, 1e6, null]], 'r']) {
+    assert.equal(W.readWild({ ...w, r: bad }, sky.map), null);
+  }
+});
+
+test('a rare catch and where a gather came from survive packing', () => {
+  const rare = W.unpackEvent(W.packEvent({ type: 'rare', id: 'p1', species: 12, k: 24, x: 1, y: 30, z: -4 }));
+  assert.deepEqual(rare, { type: 'rare', id: 'p1', species: 12, k: 24, x: 1, y: 30, z: -4 });
+  assert.equal(W.unpackEvent(['r', 'p1', 99, 24, 1, 30, -4]), null);
+  assert.ok(W.unpackEvent(W.packEvent({ type: 'join', id: 'r1', k: 3, cloud: 7, x: 0, z: 0 })).cloud !== undefined);
+  assert.ok(W.unpackEvent(W.packEvent({ type: 'join', id: 'r1', k: 3, wheel: 1, x: 0, z: 0 })).wheel !== undefined);
+  const plain = W.unpackEvent(W.packEvent({ type: 'join', id: 'r1', k: 3, perches: [1, 2, 3], x: 0, z: 0 }));
+  assert.equal(plain.cloud, undefined);
+  assert.equal(plain.wheel, undefined);
+});

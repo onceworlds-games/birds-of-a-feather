@@ -4,7 +4,8 @@
 // Every other page keeps a mirror (`authority` false): the host's counts and wild birds are copied in, every leader is fed from
 // presence, and only the flocks' shapes are worked out here (to draw them). A mirror becomes the real thing with `takeOver`.
 
-import { FLOCK, GATHER, STEAL, PEEL, HAWK, ROUND, SKY, FLIGHT, PERSONALITIES, PERSONALITY_ORDER, SLOTS } from './config.js';
+import { FLOCK, GATHER, STEAL, PEEL, HAWK, ROUND, SKY, FLIGHT, PERSONALITIES, PERSONALITY_ORDER, SLOTS, RARE, ROTATION, PLACE_TWIST } from './config.js';
+import { SPECIES, dealSpecies } from './species.js';
 import { getMap, forPerchesNear, dealPerches, wheelPos, surfaceAt } from './maps.js';
 import { makeRng, hashString, clamp, angleDiff } from './rng.js';
 import { Trail, shapeOf, newPuffs, localCount, contactOf, boundsOf, dist3, puffRadius } from './flock.js';
@@ -33,6 +34,8 @@ export class Sky {
       rivalTarget: SKY.flocks,
       autoRivals: true,
       loop: true, // a new dawn follows the night (false: the sky stops at sundown, as a Migration does)
+      rotate: false, // each dawn moves the sky to the next place (the shared sky)
+      rares: RARE.perSunset,
       ...opts,
     };
     this.map = getMap(this.opts.mapId);
@@ -75,6 +78,27 @@ export class Sky {
     for (let s = 0; s < map.perches.count; s++) if (this.perched[s]) this.groupLive[map.perches.group[s]]++;
     this.wheels = map.wheels.map(() => ({ n: this.opts.wheelBirds }));
     this.loose = [];
+    this.dealRares();
+  }
+
+  /** Rare birds on landmarks for this sunset: { species, x, y, z, n (the greys with it), by (who caught it, or null) }. */
+  dealRares() {
+    const rng = makeRng(`${this.seed}:rares`);
+    const spots = rng.shuffle(this.map.landmarks ?? []).slice(0, this.opts.rares);
+    this.rares = spots.map((p) => {
+      const species = dealSpecies(rng);
+      return { species, x: p.x, y: p.y, z: p.z, n: RARE.birds[SPECIES[species].rarity], by: null };
+    });
+  }
+
+  /** Move the sky to another place (a new dawn follows; the shared sky's turn, or a mirror catching up with its host). */
+  setMap(mapId) {
+    if (mapId === this.opts.mapId) return;
+    this.opts.mapId = mapId;
+    this.map = getMap(mapId);
+    this.opts.twist = PLACE_TWIST[mapId] ?? null;
+    this.storm = this.opts.twist === 'storm' ? { front: -330, depth: 80, speed: 4 } : null;
+    this.deal();
   }
 
   resetHawk() {
@@ -131,7 +155,7 @@ export class Sky {
       head: { x: leader.x, y: leader.y, z: leader.z },
       spawn: { x: sp.x, z: sp.z, yaw: sp.yaw, y: leader.y, token: this.spawnSeq++ },
       lastFeed: null,
-      stats: { maxN: o.n ?? FLOCK.start, gathered: 0, stolen: 0, lostSteal: 0, lostHawk: 0, shed: 0 },
+      stats: { maxN: o.n ?? FLOCK.start, gathered: 0, stolen: 0, lostSteal: 0, lostHawk: 0, shed: 0, rares: 0 },
     };
     f.trail.reset(this.clock, leader.x, leader.y, leader.z);
     this.flocks.set(id, f);
@@ -382,6 +406,16 @@ export class Sky {
         f.n += take.length;
         f.stats.gathered += take.length;
         this.events.push({ type: 'join', id, k: take.length, perches: take.slice(), x: h.x, y: h.y, z: h.z });
+      }
+      for (const r of this.rares) {
+        if (r.by || Math.hypot(h.x - r.x, h.z - r.z) > RARE.radius || h.y < r.y - RARE.below || h.y > r.y + RARE.above) continue;
+        r.by = id;
+        const k = r.n;
+        r.n = 0;
+        f.n += k;
+        f.stats.gathered += k;
+        f.stats.rares = (f.stats.rares ?? 0) + 1;
+        this.events.push({ type: 'rare', id, species: r.species, k, x: r.x, y: r.y, z: r.z });
       }
       for (let w = 0; w < this.wheels.length; w++) {
         const W = this.wheels[w];
@@ -699,6 +733,7 @@ export class Sky {
 
   dawn() {
     this.rid += 1;
+    if (this.opts.rotate) this.setMap(ROTATION[(ROTATION.indexOf(this.opts.mapId) + 1) % ROTATION.length]);
     this.reseed();
     this.clock = 0;
     this.time = 0;
@@ -728,7 +763,7 @@ export class Sky {
       f.shedCloud = null;
       f.lastFeed = null;
       f.shieldUntil = STEAL.shield;
-      f.stats = { maxN: f.n, gathered: 0, stolen: 0, lostSteal: 0, lostHawk: 0, shed: 0 };
+      f.stats = { maxN: f.n, gathered: 0, stolen: 0, lostSteal: 0, lostHawk: 0, shed: 0, rares: 0 };
       f.spawn = { x: sp.x, z: sp.z, yaw: sp.yaw, y: L.y, token: this.spawnSeq++ };
       f.trail.reset(0, L.x, L.y, L.z);
       this.shape(f);
@@ -745,7 +780,8 @@ export class Sky {
     for (let s = 0; s < this.perched.length; s++) perched += this.perched[s];
     const wheels = this.wheels.reduce((a, w) => a + w.n, 0);
     const loose = this.loose.reduce((a, c) => a + c.n, 0);
-    return { flocks, perched, wheels, loose, wild: perched + wheels + loose, total: flocks + perched + wheels + loose };
+    const rares = this.rares.reduce((a, r) => a + r.n, 0);
+    return { flocks, perched, wheels, loose, rares, wild: perched + wheels + loose + rares, total: flocks + perched + wheels + loose + rares };
   }
 
   drainEvents() {

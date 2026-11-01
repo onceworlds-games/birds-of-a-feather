@@ -3,7 +3,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Sky, resolveContact, strikeLoss, aimAt } from '../src/sim/sky.js';
 import { Trail, shapeOf, newPuffs, contactOf } from '../src/sim/flock.js';
-import { FLIGHT, ROUND, HAWK } from '../src/sim/config.js';
+import { FLIGHT, ROUND, HAWK, RARE, ROTATION, STEAL } from '../src/sim/config.js';
+import { SPECIES } from '../src/sim/species.js';
 
 /** A flock of n flying straight along yaw at cruise speed, its leader at (x, z) at time t. */
 function flock(n, x, z, yaw, t = 10, y = 10) {
@@ -148,7 +149,62 @@ test('a sunset ends at exactly its time, the night lasts its time, then a fresh 
   assert.equal(sky.rid, 2);
   assert.ok(sky.time < 0.2);
   for (const f of sky.flocks.values()) assert.equal(f.n, 8);
-  assert.equal(sky.census().wild, 1000 + sky.map.wheels.length * 40);
+  assert.equal(sky.census().wild, 1000 + sky.map.wheels.length * 40 + sky.rares.reduce((a, r) => a + r.n, 0));
+  assert.equal(sky.rares.length, RARE.perSunset);
+  assert.ok(sky.rares.every((r) => r.by === null && r.n > 0));
+});
+
+test('rare birds: three on landmarks, the first flock there wins it and its greys, once', () => {
+  const sky = new Sky({ seed: 21, autoRivals: false });
+  assert.equal(sky.rares.length, RARE.perSunset);
+  for (const r of sky.rares) {
+    assert.ok(SPECIES[r.species], 'a real species');
+    assert.ok(r.species > 0, 'never the starling everyone starts with');
+    assert.equal(r.n, RARE.birds[SPECIES[r.species].rarity]);
+    assert.ok(sky.map.landmarks.some((p) => p.x === r.x && p.z === r.z), 'on a landmark');
+  }
+  sky.addFlock('pa', { kind: 'player', name: 'A' });
+  sky.addFlock('pb', { kind: 'player', name: 'B' });
+  const r = sky.rares[0];
+  const total0 = sky.census().total;
+  sky.advance(STEAL.shield + 0.5);
+  sky.drainEvents();
+  const n0 = sky.flocks.get('pa').n;
+  // A flies onto it; B arrives a moment later
+  for (let k = 0; k < 20; k++) {
+    sky.feed('pa', r.x, r.y + 2, r.z, 0, false);
+    sky.feed('pb', r.x + 30, r.y + 2, r.z + 30, 0, false);
+    sky.advance(1 / 30);
+  }
+  let got = sky.drainEvents().filter((e) => e.type === 'rare');
+  assert.equal(got.length, 1);
+  assert.equal(got[0].id, 'pa');
+  assert.equal(got[0].species, r.species);
+  assert.equal(r.by, 'pa');
+  assert.equal(r.n, 0);
+  assert.ok(sky.flocks.get('pa').n >= n0 + got[0].k);
+  for (let k = 0; k < 20; k++) {
+    sky.feed('pb', r.x, r.y + 2, r.z, 0, false);
+    sky.advance(1 / 30);
+  }
+  got = sky.drainEvents().filter((e) => e.type === 'rare');
+  assert.equal(got.length, 0, 'taken: nobody else gets it');
+  assert.equal(sky.census().total, total0, 'birds are only moved, never made');
+});
+
+test('the shared sky turns to the next place every dawn', () => {
+  const sky = new Sky({ seed: 4, rotate: true });
+  sky.fillRivals();
+  const seen = [sky.map.id];
+  for (let d = 0; d < 4; d++) {
+    while (sky.phase === 'day') sky.advance(0.5);
+    while (sky.phase === 'night') sky.advance(0.5);
+    seen.push(sky.map.id);
+    assert.equal(sky.perched.length, sky.map.perches.count);
+    assert.equal(!!sky.storm, sky.map.id === 'stormfield', 'the storm comes with Stormfield');
+    for (const f of sky.flocks.values()) assert.ok(Math.abs(f.leader.x) < 330 && Math.abs(f.leader.z) < 330);
+  }
+  assert.deepEqual(seen, [...ROTATION, ROTATION[0]]);
 });
 
 test('a parked sky stops its clock and wakes with a fresh dawn', () => {

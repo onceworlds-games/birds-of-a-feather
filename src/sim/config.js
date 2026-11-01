@@ -80,6 +80,19 @@ export const GATHER = {
   ownerShy: 2.5, // s scattered or shed birds won't rejoin the flock they left
 };
 
+/** Rare birds: a few sit on the place's landmarks each sunset; the first flock to reach one wins it and the greys with it. */
+export const RARE = {
+  perSunset: 3,
+  radius: 7, // horizontal reach from the lead bird
+  below: 7, // the bird may pass this far under it
+  above: 14, // or this far over it
+  birds: [12, 24, 48], // the greys that come with one, by rarity
+};
+
+/** The shared sky's places, one sunset each in turn, and each place's twist. */
+export const ROTATION = ['saltmere', 'redrock', 'stormfield', 'lantern'];
+export const PLACE_TWIST = { stormfield: 'storm' };
+
 export const STEAL = {
   kernel: 10, // u: how far "near the contact point" reaches
   margin: 1.25, // the thicker side must be this much thicker
