@@ -20,6 +20,8 @@ export function makeBrain(personality, skill) {
     dodgeDir: 1,
     misjudge: 0,
     fleeBoost: false,
+    wander: null,
+    wanderUntil: 0,
   };
 }
 
@@ -156,6 +158,13 @@ function think(sky, f, rng) {
     }
   }
   if (Math.hypot(L.x - map.center.x, L.z - map.center.z) > 240) best = { kind: 'home' };
+  else if (best && best.kind !== 'flee' && b.wanderUntil > sky.clock) best = b.wander;
+  else if (best && best.kind !== 'flee' && rng.next() < S.dither * S.reaction) {
+    // a dreamy flock drifts off somewhere for a few seconds
+    b.wander = { kind: 'roam', x: L.x + rng.range(-120, 120), z: L.z + rng.range(-120, 120) };
+    b.wanderUntil = sky.clock + rng.range(2, 5);
+    best = b.wander;
+  }
   if (!best) best = { kind: 'roam', x: map.center.x + rng.range(-150, 150), z: map.center.z + rng.range(-150, 150) };
   if (best.kind === 'perch') {
     // aim at the birds actually sitting there, not the middle of the wire

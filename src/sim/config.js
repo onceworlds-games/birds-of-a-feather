@@ -148,10 +148,10 @@ export const SKILLS = ['easy', 'normal', 'hard'];
 /** How sharp a rival is, by skill. */
 export const RIVAL_SKILL = {
   // aware: how far off it notices a bigger flock; closing: how surely that flock must be coming at it before it runs;
-  // fight: how keen it is to chase smaller flocks
-  easy: { reaction: 0.6, noise: (25 * Math.PI) / 180, misjudge: 0.4, dodge: 0.1, thermals: 0.2, boost: 0.4, tail: 0, aware: 40, closing: -1, fight: 0.35 },
-  normal: { reaction: 0.35, noise: (12 * Math.PI) / 180, misjudge: 0.2, dodge: 0.45, thermals: 0.5, boost: 0.8, tail: 0.5, aware: 65, closing: 0, fight: 0.75 },
-  hard: { reaction: 0.2, noise: (5 * Math.PI) / 180, misjudge: 0.08, dodge: 0.8, thermals: 0.9, boost: 1, tail: 1, aware: 90, closing: 0.5, fight: 1 },
+  // fight: how keen it is to chase smaller flocks; dither: how often (a second) it wanders off for a few seconds
+  easy: { reaction: 0.6, noise: (25 * Math.PI) / 180, misjudge: 0.4, dodge: 0.1, thermals: 0.2, boost: 0.4, tail: 0, aware: 40, closing: -1, fight: 0.35, dither: 0.15 },
+  normal: { reaction: 0.35, noise: (12 * Math.PI) / 180, misjudge: 0.2, dodge: 0.45, thermals: 0.5, boost: 0.8, tail: 0.5, aware: 65, closing: 0, fight: 0.75, dither: 0.04 },
+  hard: { reaction: 0.2, noise: (5 * Math.PI) / 180, misjudge: 0.08, dodge: 0.8, thermals: 0.9, boost: 1, tail: 1, aware: 90, closing: 0.5, fight: 1, dither: 0 },
 };
 
 /** Personalities: what a rival wants. */
