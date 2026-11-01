@@ -99,6 +99,12 @@ export function symbolPath(ctx, kind, x, y, r) {
   }
 }
 
+/** Your tag first, then bigger flocks first (stable, so tags don't swap places frame to frame). */
+function byTagOrder(a, b) {
+  if (a.me !== b.me) return a.me ? -1 : 1;
+  return b.n - a.n || b.size - a.size || a.slot - b.slot;
+}
+
 export class Hud {
   constructor(canvas) {
     this.canvas = canvas;
@@ -110,8 +116,14 @@ export class Hud {
     this.whys = [];
     this.hint = { text: '', t: 0, dur: 0 };
     this.pulse = 0;
-    this.myCountPos = { x: 0, y: 0 };
+    // your own count's box on screen (gains and losses float beside it, steal signs keep clear of it)
+    this.mine = { x: 0, y: 0, l: 0, r: 0, t: 0, b: 0, on: false };
     this.squash = 0;
+    // the boxes of the tags placed this frame, so later ones and the steal signs keep clear of them
+    this.boxes = Array.from({ length: 16 }, () => ({ l: 0, r: 0, t: 0, b: 0 }));
+    this.nBoxes = 0;
+    // how much of each flock's tag shows (by slot), easing out when it can't sit clear of the others
+    this.tagShow = new Float32Array(32).fill(1);
   }
 
   resize(w, h, pr) {
@@ -126,11 +138,33 @@ export class Hud {
     this.hint = { text, t: 0, dur };
   }
 
-  /** A number flying from (x, y) into your count (gains), or dropping from it (losses). */
+  /**
+   * A gain rising beside your count, or a loss dropping beside it. Gains (or losses) that keep coming add up in one number for
+   * up to 1.5 s, so a steal reads as one climbing +N beside the count instead of a pile of +1s on top of it.
+   */
   addFloat(x, y, k, gain) {
-    if (this.floats.length > 24) this.floats.shift();
-    this.floats.push({ x, y, k, gain, t: 0 });
+    for (let i = this.floats.length - 1; i >= 0; i--) {
+      const f = this.floats[i];
+      if (f.gain !== gain) continue;
+      if (f.age < 1.5 && f.t < 0.8) {
+        f.k += k;
+        f.t = Math.min(f.t, 0.25);
+        this.squash = 1;
+        return;
+      }
+      // the old number makes way for the new one
+      f.t = Math.max(f.t, 0.85);
+      break;
+    }
+    if (this.floats.length > 8) this.floats.shift();
+    this.floats.push({ k, gain, t: 0, age: 0 });
     this.squash = 1;
+  }
+
+  /** Drop the signs and the floating gains and losses (the sky reached sundown: the fight is over). */
+  quiet() {
+    this.whys.length = 0;
+    this.floats.length = 0;
   }
 
   /** Why a steal went one way: the two local counts at the contact point. */
@@ -175,7 +209,12 @@ export class Hud {
     this.pulse += dt;
     this.squash = Math.max(0, this.squash - dt * 4);
     if (s.ring) this.drawRing(s.ring);
-    if (s.tags) for (const t of s.tags) this.drawTag(t);
+    this.mine.on = false;
+    this.nBoxes = 0;
+    if (s.tags) {
+      this.placeTags(s.tags, dt);
+      for (const t of s.tags) this.drawTag(t);
+    }
     if (s.labels) for (const l of s.labels) this.drawLabel(l);
     if (s.why !== false) this.drawWhys(dt);
     if (s.clock) this.drawClock(s.clock, s.layout);
@@ -253,8 +292,89 @@ export class Hud {
       this.drawHawkGlyph(x + tw + 16, y - 2, 11, PALETTE.ember, t.alpha);
     }
     if (t.name) this.text(t.name, t.x, y + size * 0.62 + 10, 16, { weight: 700, alpha: t.alpha * 0.95 });
-    if (t.me) this.myCountPos = { x: t.x, y };
     ctx.globalAlpha = 1;
+  }
+
+  /** A tag's box on screen (the symbol, the number, the hawk mark and the name). */
+  tagBox(t, out) {
+    const ctx = this.ctx;
+    ctx.font = `900 ${t.size}px ${NUM}`;
+    const tw = ctx.measureText(String(t.n)).width;
+    const total = tw + t.size * 0.56 + 6 + (t.hunted ? 30 : 0);
+    out.l = t.x - total / 2 - 4;
+    out.r = t.x + total / 2 + 4;
+    out.t = t.y - t.size * 0.55;
+    out.b = t.y + t.size * 0.55 + (t.name ? 26 : 0);
+    return out;
+  }
+
+  /**
+   * Keep counts readable where flocks are close: yours stays put, every other tag (biggest first) moves just clear of the ones
+   * already placed (up first, then down), and one that can't fades out where it is and claims no room.
+   */
+  placeTags(tags, dt) {
+    tags.sort(byTagOrder);
+    for (const t of tags) {
+      if (this.nBoxes >= this.boxes.length) break;
+      const b = this.tagBox(t, this.boxes[this.nBoxes]);
+      if (t.me) {
+        const m = this.mine;
+        m.on = true;
+        m.x = t.x;
+        m.y = t.y;
+        m.l = b.l;
+        m.r = b.r;
+        m.t = b.t;
+        m.b = b.b;
+        this.nBoxes++;
+        continue;
+      }
+      const y0 = t.y;
+      const t0 = b.t;
+      const b0 = b.b;
+      let clear = this.nudge(t, b, -1);
+      if (!clear) {
+        t.y = y0;
+        b.t = t0;
+        b.b = b0;
+        clear = this.nudge(t, b, 1);
+      }
+      if (!clear) {
+        t.y = y0;
+        b.t = t0;
+        b.b = b0;
+      }
+      const slot = t.slot & 31;
+      const goal = clear ? 1 : 0;
+      const was = this.tagShow[slot];
+      const k = dt > 0 && dt < 0.5 ? was + Math.sign(goal - was) * Math.min(Math.abs(goal - was), dt * 6) : goal;
+      this.tagShow[slot] = k;
+      t.alpha *= k;
+      if (clear) this.nBoxes++;
+    }
+  }
+
+  /** Move a tag's box (dir −1 up, 1 down) until it overlaps none placed, at most 90 px; true when it found a clear spot. */
+  nudge(t, b, dir) {
+    let moved = 0;
+    for (let pass = 0; pass < 5; pass++) {
+      let hit = null;
+      for (let i = 0; i < this.nBoxes; i++) {
+        const o = this.boxes[i];
+        if (b.l < o.r && b.r > o.l && b.t < o.b && b.b > o.t) {
+          hit = o;
+          break;
+        }
+      }
+      if (!hit) return true;
+      const dy = dir < 0 ? hit.t - 2 - b.b : hit.b + 2 - b.t;
+      moved += Math.abs(dy);
+      if (moved > 90) return false;
+      t.y += dy;
+      b.t += dy;
+      b.b += dy;
+    }
+    return false;
   }
 
   /** A roost wire's label at its start: place, symbol, name, count. */
@@ -412,27 +532,23 @@ export class Hud {
   }
 
   drawFloats(dt) {
-    const target = this.myCountPos;
+    const m = this.mine;
     let w = 0;
     for (const f of this.floats) {
       f.t += dt;
+      f.age += dt;
       if (f.t < 1.1) this.floats[w++] = f;
     }
     this.floats.length = w;
+    if (!m.on) return;
     for (const f of this.floats) {
-      const k = Math.min(1, f.t / 0.7);
-      const e = k * k * (3 - 2 * k);
-      let x;
-      let y;
-      if (f.gain) {
-        x = f.x + (target.x - f.x) * e;
-        y = f.y + (target.y - f.y) * e - Math.sin(e * Math.PI) * 30;
-      } else {
-        x = target.x + 30;
-        y = target.y + 10 + f.t * 50;
-      }
-      const a = f.t > 0.8 ? 1 - (f.t - 0.8) / 0.3 : 1;
-      this.text(`${f.gain ? '+' : '−'}${f.k}`, x, y, 26, { font: NUM, weight: 900, color: f.gain ? PALETTE.gold : PALETTE.ember, alpha: a });
+      const k = Math.min(1, f.t / 0.9);
+      const e = 1 - (1 - k) * (1 - k);
+      // beside the count, never on it: gains rise from its right shoulder, losses drop from its right foot
+      const x = m.r + 6;
+      const y = f.gain ? m.y - 10 - e * 26 : m.y + 14 + e * 30;
+      const a = Math.min(1, f.t / 0.08) * (f.t > 0.8 ? 1 - (f.t - 0.8) / 0.3 : 1);
+      this.text(`${f.gain ? '+' : '−'}${f.k}`, x, y, 26, { font: NUM, weight: 900, color: f.gain ? PALETTE.gold : PALETTE.ember, align: 'left', alpha: a });
     }
   }
 
@@ -443,13 +559,53 @@ export class Hud {
       if (w.t < 1.6) this.whys[k++] = w;
     }
     this.whys.length = k;
+    const m = this.mine;
     for (const w of this.whys) {
       if (w.x < -50 || w.y < -50) continue;
+      // the sign is about 112 × 48 around (x, y); it never covers a count, your gains and losses, or another sign. It tries
+      // where the fight is, then left of your count (the side it found clear last time first), moving down past what it hits
+      let x = 0;
+      let y = 0;
+      let ok = false;
+      for (let side = 0; side < 2 && !ok; side++) {
+        const left = side === 0 ? w.left : !w.left;
+        if (left && !m.on) continue;
+        x = left ? m.l - 60 : w.x;
+        y = left ? m.y : w.y;
+        for (let pass = 0; pass < 4; pass++) {
+          const below = this.signHit(x, y);
+          if (below < 0) {
+            ok = true;
+            w.left = left;
+            break;
+          }
+          y = below + 26;
+        }
+      }
+      if (!ok) continue;
+      if (this.nBoxes < this.boxes.length) {
+        const o = this.boxes[this.nBoxes++];
+        o.l = x - 56;
+        o.r = x + 56;
+        o.t = y - 24;
+        o.b = y + 24;
+      }
       const a = w.t > 1.2 ? 1 - (w.t - 1.2) / 0.4 : 1;
       const color = w.lost ? PALETTE.ember : PALETTE.gold;
-      this.text(`${w.mine} vs ${w.theirs}`, w.x, w.y - 8, 22, { font: NUM, weight: 900, color, alpha: a });
-      this.text(w.lost ? 'thin here' : 'thicker here', w.x, w.y + 12, 16, { weight: 700, alpha: a });
+      this.text(`${w.mine} vs ${w.theirs}`, x, y - 8, 22, { font: NUM, weight: 900, color, alpha: a });
+      this.text(w.lost ? 'thin here' : 'thicker here', x, y + 12, 16, { weight: 700, alpha: a });
     }
+  }
+
+  /** The bottom of what a sign at (x, y) would cover (your count with its gains and losses, a tag, a sign), or −1. */
+  signHit(x, y) {
+    const m = this.mine;
+    if (m.on && x - 56 < m.r + 60 && x + 56 > m.l && y - 24 < m.b + 24 && y + 24 > m.t) return m.b + 24;
+    for (let i = 0; i < this.nBoxes; i++) {
+      const o = this.boxes[i];
+      if (x - 56 < o.r && x + 56 > o.l && y - 24 < o.b && y + 24 > o.t) return o.b;
+    }
+    return -1;
   }
 
   drawHint(dt, layout) {

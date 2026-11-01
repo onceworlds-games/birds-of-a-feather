@@ -725,6 +725,7 @@ function enterNight(sky) {
   S.roostMap = roostAssign(standings, myId());
   birds.setRoost(sky.map.roost, S.roostMap);
   fx.setPulse(null);
+  hud.quiet();
   if (!me.L) return;
   audio.bell(true);
   if (S.mig) return; // a place's result is its own screen

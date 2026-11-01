@@ -338,11 +338,14 @@ two on a screen, never a stack.
      cream text with an ink outline. It starts below whatever the platform reserves at the top (`ow.ui.reserved`).
    - **Over every flock:** its count (Big Shoulders; yours 48 px, others 30-44 px by distance) with its symbol, the name beneath
      (16 px). A rival's number is cream when it's smaller than yours (prey) and Ember with a jagged underline when it's bigger
-     (danger). Tags shrink with distance, never under 16 px, and fade beyond 220 u.
+     (danger). Tags shrink with distance, never under 16 px, and fade beyond 220 u. Where flocks are close yours stays put
+     and the others stack clear of it, biggest first (up, else down); one with no room fades out until there is.
    - **Your lead bird:** a thin cream ring under it, with the stamina arc in gold on it (only while not full).
    - **Edge pointers:** the biggest rival (its symbol and count) when it's off screen; the hunting hawk (Ember, a hawk glyph) when
      it's after you.
-   - **Floating numbers:** `+11` flies from where the birds came from into your count; `−18` in Ember drops from it.
+   - **Floating numbers:** `+11` rises off your count's right shoulder (quick gains merge into one), `−18` in Ember drops
+     from its right foot; never on the number. The "54 vs 37 / thicker here" sign sits where the fight is, or left of your
+     count, or below whatever it would cover, and never over a count; signs and floats clear at sundown.
    - **Hints:** centre of the upper third, Bricolage 700, 24-28 px, cream with an ink outline, fading in and out.
    - The top-left corner (the platform's menu) and the lower corners (stick, Boost) stay empty; layout follows `ow.ui.reserved`.
 4. **Sundown and the roost** (the night, 15 s). Your bird flies itself to the great wires over the harbour road and the camera
@@ -447,11 +450,11 @@ All rendered by the game itself in poster mode (`?poster=<name>`: fixed seed, th
 - **Multi** (`thumb-4`): six flocks over the town, each with its number.
 - **Icon:** a Cobalt flock curling behind its lead bird in front of a big sun's disc. No text.
 - **Badges:** each a bold symbol on a coloured disc (a bird on a wire, a hawk's head, a thermal spiral, feathers...).
-- **Trailer** (30 s, 1280×720, real play on autoplay: a Hard hunter's mind flies your bird): 0-6 s your flock over the
-  rooftops in gold light, count, sun clock and board in view, gathering and growing (the goal); 6-12 s along the cliffs, cutting
-  a rival's tail ("thicker here", the count climbing); 12-21 s dusk, the clock counting down from 0:11, the hawk's aim ring on
-  your 700-bird flock; 21-27 s sundown, the flocks landing on the wires and "You: biggest flock at sundown"; 27-30 s the title,
-  the name over the live sky.
+- **Trailer** (29 s, 1280×720, real play on autoplay: a Hard hunter's mind flies your bird): 0-11 s your flock over the
+  rooftops and fields in gold light, count, sun clock and board in view, cutting rivals' tails ("thicker here") and growing
+  from 300 to 600 (the goal); 11-22 s dusk, the clock counting down from 0:10, the hawk's aim ring on your flock, "Dodged!",
+  the sun on the sea; 22-27 s sundown, the flocks landing on the wires, then 2 s of "You: biggest flock at sundown"; 27-29 s
+  the title, the name over the live sky.
 
 ## Originality check
 

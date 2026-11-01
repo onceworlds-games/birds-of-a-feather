@@ -250,11 +250,12 @@ void main() {
   // fade toward the column's silhouette, so it never shows a hard edge
   vec3 toCam = cameraPosition - vWorld;
   float facing = abs(dot(normalize(toCam.xz), normalize(vRim)));
-  float bands = 0.5 + 0.5 * sin(vH * 40.0 - time * 3.0 + sin(a * 5.0 + time) * 1.5);
-  float fade = smoothstep(0.0, 0.08, vH) * (1.0 - smoothstep(0.55, 1.0, vH));
-  float alpha = bands * fade * 0.06 * strength * smoothstep(0.0, 0.6, facing);
+  float bands = 0.6 + 0.4 * sin(vH * 40.0 - time * 3.0 + sin(a * 5.0 + time) * 1.5);
+  // soft at the foot and the top too: from a distance it reads as a shimmer, never a pale block
+  float fade = smoothstep(0.0, 0.3, vH) * (1.0 - smoothstep(0.35, 0.95, vH));
+  float alpha = bands * fade * 0.075 * strength * facing * facing;
   #ifdef USE_FOG
-  alpha *= smoothstep(18.0, 50.0, vFogDepth) * (1.0 - smoothstep(60.0, 170.0, vFogDepth));
+  alpha *= smoothstep(16.0, 45.0, vFogDepth) * (1.0 - smoothstep(50.0, 140.0, vFogDepth));
   #endif
   gl_FragColor = vec4(tint, alpha);
   #include <fog_fragment>
