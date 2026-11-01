@@ -1180,16 +1180,14 @@ function tintFields(map) {
         fc = f.c;
       }
     }
-    let c = mix(fields[fc], grass, 0.12);
-    // rows in the wheat
-    c = shade(c, 0.94 + 0.08 * Math.sin((x + z) * 0.9));
+    const c0 = mix(fields[fc], grass, 0.12);
     let near = Infinity;
     for (let k = 0; k < roads.length; k++) {
       const [sx, sz] = roads[k];
       const dd = Math.abs(sx - x) + Math.abs(sz - z);
       if (dd < near) near = dd;
     }
-    c = mix(c, road, smoothstep(7, 3, near));
+    const c = mix(c0, road, smoothstep(7, 3, near));
     return shade(c, 0.93 + 0.1 * noise(x / 8, z / 8) + 0.02 * h / 10);
   });
 }

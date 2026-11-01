@@ -178,11 +178,11 @@ function paintFields(map, g, m, S) {
     f.clip(path);
     const ang = rng.range(0, Math.PI);
     const ploughed = seed.c === L.fields.length - 1;
-    const gap = ploughed ? 1.6 : rng.range(1.8, 2.6);
+    const gap = ploughed ? 1.5 : rng.range(1.1, 1.5);
     f.translate(seed.x, seed.z);
     f.rotate(ang);
-    f.strokeStyle = ploughed ? 'rgba(60,36,20,0.35)' : 'rgba(70,60,20,0.2)';
-    f.lineWidth = gap * 0.42;
+    f.strokeStyle = ploughed ? 'rgba(60,36,20,0.3)' : 'rgba(70,60,20,0.15)';
+    f.lineWidth = gap * 0.4;
     f.beginPath();
     for (let x = -90; x <= 90; x += gap) {
       f.moveTo(x, -90);

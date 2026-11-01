@@ -236,29 +236,55 @@ function glowTexture() {
   return t;
 }
 
-function featherTexture() {
-  const c = document.createElement('canvas');
-  c.width = c.height = 64;
-  const g = c.getContext('2d');
-  g.translate(32, 32);
-  g.rotate(-0.6);
-  g.fillStyle = '#ffffff';
-  g.beginPath();
-  g.moveTo(0, -28);
-  g.quadraticCurveTo(13, -8, 2, 26);
-  g.lineTo(-2, 26);
-  g.quadraticCurveTo(-13, -8, 0, -28);
-  g.fill();
-  g.strokeStyle = 'rgba(0,0,0,0.35)';
-  g.lineWidth = 2;
-  g.beginPath();
-  g.moveTo(0, -24);
-  g.lineTo(0, 28);
-  g.stroke();
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
+// feathers: a point each, drawn as a feather turning end over end and flipping as it falls (no texture: the vane and its shaft
+// are worked out per pixel), lit on one face, darker on the other, fading at the end of its life
+const featherVert = /* glsl */ `
+attribute vec3 color;
+attribute float sway;
+attribute float life;
+uniform float time;
+uniform float scale;
+varying vec3 vColor;
+varying float vAngle;
+varying float vFlip;
+varying float vAlpha;
+void main() {
+  vec4 mv = modelViewMatrix * vec4(position, 1.0);
+  gl_Position = projectionMatrix * mv;
+  gl_PointSize = clamp(1.9 * scale / max(1.0, -mv.z), 0.0, 80.0);
+  vColor = color;
+  vAngle = sway * 3.0 + time * (1.2 + fract(sway * 7.3) * 1.6) * (fract(sway * 3.1) > 0.5 ? 1.0 : -1.0);
+  vFlip = cos(time * (2.0 + fract(sway * 5.7) * 2.5) + sway * 11.0);
+  vAlpha = clamp(life * 1.5, 0.0, 1.0);
+}`;
+
+const featherFrag = /* glsl */ `
+varying vec3 vColor;
+varying float vAngle;
+varying float vFlip;
+varying float vAlpha;
+void main() {
+  vec2 q = gl_PointCoord - 0.5;
+  float c = cos(vAngle), s = sin(vAngle);
+  q = vec2(c * q.x - s * q.y, s * q.x + c * q.y);
+  // seen edge-on as it flips, the feather narrows
+  q.x /= max(0.22, abs(vFlip));
+  float y = q.y / 0.46;
+  if (abs(y) > 1.0) discard;
+  // a vane, widest a little above the middle, with a quill at the foot
+  float t = (y + 1.0) * 0.5;
+  float w = 0.17 * pow(sin(3.14159 * clamp(t * 1.08 - 0.04, 0.0, 1.0)), 0.7) * (t < 0.12 ? 0.25 : 1.0);
+  float side = q.x > 0.0 ? 1.0 : 0.82; // the two halves of the vane differ a little
+  if (abs(q.x) > w * side) discard;
+  // notches in the vane
+  float notch = step(0.93, fract(t * 7.0 + q.x * 9.0)) * step(0.4, abs(q.x) / max(w, 1e-3));
+  if (notch > 0.5) discard;
+  float shaft = 1.0 - smoothstep(0.008, 0.02, abs(q.x));
+  float face = vFlip > 0.0 ? 1.0 : 0.72;
+  vec3 col = vColor * face * (0.85 + 0.3 * (1.0 - abs(q.x) / max(w, 1e-3)));
+  col = mix(col, vColor * 0.45, shaft * 0.8);
+  gl_FragColor = vec4(col, vAlpha);
+}`;
 
 export class Fx {
   constructor(scene) {
@@ -357,10 +383,13 @@ export class Fx {
     const fg = new THREE.BufferGeometry();
     fg.setAttribute('position', new THREE.BufferAttribute(this.fPos, 3).setUsage(THREE.DynamicDrawUsage));
     fg.setAttribute('color', new THREE.BufferAttribute(this.fCol, 3).setUsage(THREE.DynamicDrawUsage));
+    fg.setAttribute('sway', new THREE.BufferAttribute(this.fSway, 1).setUsage(THREE.DynamicDrawUsage));
+    fg.setAttribute('life', new THREE.BufferAttribute(this.fLife, 1).setUsage(THREE.DynamicDrawUsage));
     this.fGeo = fg;
+    this.featherUniforms = { time: { value: 0 }, scale: { value: 400 } };
     this.feathers = new THREE.Points(
       fg,
-      new THREE.PointsMaterial({ size: 1.6, map: featherTexture(), vertexColors: true, transparent: true, depthWrite: false, alphaTest: 0.2, sizeAttenuation: true }),
+      new THREE.ShaderMaterial({ uniforms: this.featherUniforms, vertexShader: featherVert, fragmentShader: featherFrag, transparent: true, depthWrite: false }),
     );
     this.feathers.frustumCulled = false;
     scene.add(this.feathers);
@@ -785,9 +814,14 @@ export class Fx {
       if (this.fLife[i] <= 0) P[i * 3 + 1] = -9999;
     }
     if (any || this.featherDirty) {
-      this.fGeo.attributes.position.needsUpdate = true;
-      this.fGeo.attributes.color.needsUpdate = true;
+      const a = this.fGeo.attributes;
+      a.position.needsUpdate = true;
+      a.color.needsUpdate = true;
+      a.sway.needsUpdate = true;
+      a.life.needsUpdate = true;
     }
+    this.featherUniforms.time.value = this.time;
+    if (camera) this.featherUniforms.scale.value = height / (2 * Math.tan((camera.fov * Math.PI) / 360));
     this.featherDirty = any;
     // rings
     if (this.pulseRing.visible && this.pulseAt) {

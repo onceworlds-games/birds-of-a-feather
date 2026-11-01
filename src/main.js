@@ -486,8 +486,10 @@ function roostWant(map, out, look) {
 function titleWant(map, out, look) {
   const T = map.title;
   const t = performance.now() / 1000;
-  out.set(T.camera[0], T.camera[1], T.camera[2]);
-  look.set(T.look[0] + Math.sin(t * 0.07) * 14, T.look[1] + Math.sin(t * 0.05) * 3, T.look[2] + Math.cos(t * 0.06) * 14);
+  // below the wire, looking up: the birds stand dark against the sunset, chimneys and roofs along the foot of the frame
+  out.set(T.camera[0], T.camera[1] - 5.6, T.camera[2]);
+  const far = Math.hypot(T.look[0] - out.x, T.look[2] - out.z);
+  look.set(T.look[0] + Math.sin(t * 0.07) * 14, out.y + far * Math.tan(0.6 + Math.sin(t * 0.05) * 0.01), T.look[2] + Math.cos(t * 0.06) * 14);
   // upright phones: tilt up, so the sky and the roofs fill the tall frame instead of the dark field
   if (portrait()) {
     out.x += 6;
@@ -1511,13 +1513,16 @@ function onKey(k) {
 // ------------------------------------------------------------------ the title's wire birds
 
 const TITLE_BIRDS = [];
+const NO_EDGE = new THREE.Color(0, 0, 0);
 function seatTitleBirds(map) {
   const w = map.title.wire;
   TITLE_BIRDS.length = 0;
   for (let k = 0; k < 16; k++) {
     const s = 0.3 + k * 0.026 + ((k * 37) % 7) * 0.002;
     const p = wirePoint(w, s);
-    TITLE_BIRDS.push({ x: p[0], y: p[1] + 0.22, z: p[2], vx: 0, vy: 0, vz: 0, yaw: Math.PI + ((k * 13) % 5) * 0.08 - 0.16, phase: k * 1.7, flying: false, t: 0 });
+    // turned three-quarters toward the camera (east), some one way, some the other, so each shows its head and beak
+    const turn = (k * 7) % 3 === 0 ? -0.75 : 0.75;
+    TITLE_BIRDS.push({ x: p[0], y: p[1] + 0.22, z: p[2], vx: 0, vy: 0, vz: 0, yaw: turn + ((k * 13) % 5) * 0.08 - 0.16, phase: k * 1.7, flying: false, t: 0 });
   }
 }
 seatTitleBirds(getMap(TEST_MAP));
@@ -1682,14 +1687,15 @@ function buildHud(sky) {
     if (tags.length >= tagPool.length) continue;
     const mine = f.id === id;
     const head = mine ? me.L : f.puffs[0];
-    const up = mine ? 2.6 : (f.puffs[0].r || 2) + 2;
+    // mine sits well above my bird, so the bird and its trail show under the count and the chorus
+    const up = mine ? 5.2 : (f.puffs[0].r || 2) + 2;
     project(head.x, head.y + up, head.z, pb);
     if (pb.behind || pb.x < -40 || pb.x > view.width + 40 || pb.y < -40 || pb.y > view.height + 40) continue;
     const d = Math.hypot(head.x - camera.position.x, head.z - camera.position.z);
     if (!mine && d > 280) continue;
     const t = tagPool[tags.length];
     t.x = pb.x;
-    t.y = mine ? pb.y - 6 : pb.y;
+    t.y = mine ? pb.y - 12 : pb.y;
     t.n = f.n;
     t.slot = f.slot;
     t.me = mine;
@@ -1777,7 +1783,7 @@ const hawkDraw = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0, bank: 0, scale: 9, flap: 
 const ASH = new THREE.Color(PALETTE.ash);
 const slotColors = SLOTS.map((s) => new THREE.Color(s.hex));
 const focus = new THREE.Vector3();
-const LEAD_SCALE = 6.4;
+const LEAD_SCALE = 7.2;
 
 function addLeader(x, y, z, yaw, color, o = {}) {
   if (leaderList.length >= leaders.length) return;
@@ -1845,10 +1851,12 @@ function drawLeaders(sky) {
   else fx.setAim(null);
   // the title's wire birds
   if (!S.mig && (S.mode === 'title' || S.mode === 'takeoff' || S.mode === 'boot' || (S.mode === 'closed' && !me.L))) {
-    for (const b of TITLE_BIRDS) {
-      if (b.flying && b.t > 2) continue;
-      addLeader(b.x, b.y, b.z, b.yaw, ASH, { scale: 2.3, flap: b.flying ? 15 : -1, phase: b.phase, species: -1 });
-    }
+    // starlings on the wire, and in the middle the bird the player leads with (no flock's edge: nobody leads yet)
+    TITLE_BIRDS.forEach((b, k) => {
+      if (b.flying && b.t > 2) return;
+      const mine = k === 8;
+      addLeader(b.x, b.y, b.z, b.yaw, NO_EDGE, { scale: mine ? 2.7 : 2.3, flap: b.flying ? 15 : -1, phase: b.phase, species: mine ? equipped.species : 0, flair: mine ? equipped.flair : 0 });
+    });
   }
   birds.setLeaders(leaderList);
 }
