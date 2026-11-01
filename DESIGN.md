@@ -2,35 +2,40 @@
 
 ## The pitch
 
-**Lead a flock across the sunset: gather the grey birds, fly through rival flocks to steal theirs, and be the biggest when the
-sun goes down.**
+**Lead a flock across the sunset: gather the grey birds, fly through rival flocks to steal theirs, catch the rare birds on the
+landmarks, and be the biggest when the sun goes down.**
 
 **The goal in one line:** biggest flock at sundown wins.
 
-What a new player sees in one look: a sky full of murmurations over a harbour town, theirs in one colour with a big number over
-it, grey birds sitting on the roofs and wires below, and the sun sinking toward the sea at the top of the screen.
+What a new player sees in one look: a town from high above at golden hour, murmurations sweeping over it in their colours, theirs
+with a big number over it and a bird in front of it, grey birds sitting on the roofs and wires below, a pillar of light over a
+church spire where a rare bird waits, and the sun sinking toward its horizon line at the top of the screen.
 
 **Signature mechanic:** your score is a living murmuration. It swirls behind you, stretches when you boost and bunches when you
 turn, and where two flocks overlap, birds switch to whichever side is thicker *right there*, one by one, in a visible ripple of
 colour. A big flock swallows a small one head-on; a small flock that slices through a big one's thin tail steals its stragglers.
+
+**Why you come back:** every sunset pays song (the game's points) into a level, 1 to 40; levels open trails and flair for your
+flock; rare birds caught fill a 24-species Aviary and can lead your flock; three daily goals, three weekly goals, a streak and
+one Daily Sunset a day (the same place, rivals and seed for everyone, with its own board).
 
 ## The first minute (what a new player sees and does)
 
 | Time | What happens | Hint (2-5 words, once) |
 |---|---|---|
 | 0.0 s | The page paints the title at once (HTML name and the Fly sign over a sunset gradient); the 3D world builds and its shaders compile after that first paint. | |
-| ~1 s | **Title**: the camera sits just behind a telegraph wire high over Saltmere's rooftops; 16 grey birds perch on the wire in the foreground, bobbing. Beyond, the live sky: rival flocks sweep over the town, rippling colour as they steal from each other. The name, big. One sign hangs from a wire strung across the screen: **Fly** (Space). Under it, `Best 312` if the player has one. | |
-| tap | Fly starts the AudioContext. The 16 birds on the wire burst into the air (wing-clap burst, chirps); the camera drops off the wire into a swoop and settles behind your lead bird. Eight of the birds stay with you and flash into your colour, rear to front; the other eight wheel away grey. Your number pops up over the flock: **8**. | |
-| 1.5 s after | Flying. The sun clock (top centre) shows the sun high over its horizon line. | "Steer with the mouse" / "Steer with A and D" / "Steer with the stick" (the device used last) |
+| ~1 s | **Title**: from under a telegraph wire high over the town, looking up into the sunset: starlings perch on the wire dark against the sky, your own lead bird among them in its species and flair; roofs and chimneys along the foot of the frame, smoke drifting. The name, big. **Fly** hangs from a wire under it, with **Today** (the day's goals done, `1/3`) and **Aviary** beside each other below, and the level bar. | |
+| tap | Fly starts the AudioContext. The wire birds burst into the air (wing-clap, chirps); the camera swoops up and settles high above your lead bird, looking down at 54°. Your number pops up over the flock: **8**. | |
+| 1.5 s after | Flying. The sun clock (top centre) shows the sun high over its horizon line. | "Point where to fly" / "Fly with WASD" / "Point the stick to fly" (the device used last) |
 | 5 s | If nothing is gathered yet, a soft cream pulse rings the nearest roof of grey birds. | "Gather the grey birds" |
-| ~8 s | You pass over the roof: the grey birds burst up and swirl into your flock, each one flashing your colour as it arrives; a cascade of chirps; `+11` flies from the roof into your number, which squashes and settles at **19**. | |
+| ~8 s | You pass over the roof: the grey birds burst up and swirl into your flock, each one flashing your colour as it arrives; `+11` flies into your number. A second roof soon after sings the next note of a **Chorus** (`Chorus ×2`, a pip lights under your number). | |
 | ~12 s | | "Biggest flock at sundown wins" |
-| 10-25 s | More roofs and wires; a grey wheeling murmuration over the fields. Flying into it is the first gasp: 40 birds turn your colour at once. The leaderboard (top right) shows you climbing: 5th, 4th. | "Hold Space to boost" / "Hold the mouse to boost" / "Hold Boost to speed up" (near prey, or at 26 s) |
+| 10-25 s | More roofs and wires, a grey wheel over the fields. The board (top right) shows you climbing. | "Hold the mouse to boost" / "Hold Space to boost" / "Hold Boost to speed up" |
 | ~25 s | The first smaller rival comes into view; its number is drawn cream (prey). | "Cut through smaller flocks" |
-| ~30 s | You cut through it: a ripple of colour through its birds starting where you touched, `+14`, a rising chirp run, and a small "54 vs 37 / thicker here" at the contact point. If a bigger rival heads at you, its number is Ember with a jagged underline. | "Avoid bigger flocks" (first time one closes in) |
-| ~40 s | First thermal shimmering ahead over a chimney. | "Ride the thermal" |
-| 45 s+ | The first hawk can come for the biggest flock: its cry, its silhouette circling high, an Ember aim ring on the target. On a new player's first sunset it never targets them before 1:30. | "Hawk! Turn hard" (first time it hunts you) |
-| 60 s | The light turns from gold to ember; the music adds its bass and shaker. | |
+| ~30 s | You cut through it: a ripple of colour through its birds from where you touched, a rising chirp run, "thicker here" at the contact point. A bigger rival's number is Ember with a jagged underline. | "Avoid bigger flocks" |
+| ~40 s | A thermal shimmers ahead over a chimney; riding it calls **Thermal**, boosting out of it **Slingshot**. | "Ride the thermal" |
+| any time | The pillar of light over a landmark: fly through the rare bird circling there and it leads its little flock into yours: `Rare bird`, its name, a slow-motion beat. | |
+| 45 s+ | The first hawk can come for the biggest flock: its cry, its dark shape circling, an Ember aim ring on the target. On a new player's first sunset it never targets them before 1:30. | "Hawk! Turn hard" |
 
 A player who has never finished a sunset gets the gentle first round: if they are alone in the server, the rivals play Easy;
 the hawk leaves them alone until 1:30; hints show. A hint shows again only to someone who seems stuck (no birds gathered for
@@ -38,35 +43,37 @@ the hawk leaves them alone until 1:30; hints show. A hint shows again only to so
 
 ## Controls
 
-One stick, one button, the same in every mode. You never crash: the flight floor follows the ground and the roofs.
+Point where to fly, hold to boost, the same in every mode. You never crash: the flight floor follows the ground and the roofs.
 
 | Input | Keyboard and mouse | Phone and tablet |
 |---|---|---|
-| Steer (turn) | Mouse: the bird turns toward the cursor (aimed at a point 25 u ahead of the lead bird, projected on screen; a small dead zone). Or A/D, ←/→. | The platform's stick (`stick: 'analog'`), x |
-| Climb and dive | Mouse above/below the lead bird, or W/S, ↑/↓ | The stick, y (up = climb) |
+| Fly (point) | Mouse: the lead bird turns toward the point on the ground under the cursor. Or WASD / the arrows: eight ways, up the screen is up. | The platform's stick (`stick: 'analog'`, `zone: 'wide'`): the bird flies the way it points |
 | Boost (hold) | Space or hold the left mouse button | One button: **Boost** (key Space) |
-| Fly / continue | Space or Enter (or click/tap the sign) | Tap the sign |
+| Fly / the main sign | Space or Enter (or click or tap the sign) | Tap the sign |
+| Today, Aviary, Migration | T, B, M | The signs |
+| Back / pause a Migration place | Esc | The signs |
 
 The mouse steers without pointer lock, so Esc and the platform's buttons always work. Whichever device was used last steers (and
-names itself in the hints). When a cursor leaves the frame its steering eases back to straight.
+names itself in the hints). When a cursor leaves the frame its steering eases back to straight. The touch controls are on only
+while flying: every screen (the title, the night, Today, the Aviary, results) clears them, so their buttons take the whole screen.
 
-**Altitude, decided:** the bird flies in a height band that follows the ground, roofs and trees under it and 12 u ahead (so it
-rises before a building, never into it). Let go and it eases back to **cruise** (7 u above the surface), where it passes right over
-perched birds and gathers them. Push up to climb (slower), down to dive (faster). Climbing is for crossing over a bigger flock,
-escaping and reaching a thermal; diving is free speed. A beginner who only turns left and right plays a complete game at cruise.
+**Altitude, decided:** nobody steers up or down. The bird flies in a height band that follows the ground, roofs and trees under it
+and 12 u ahead (so it rises before a building, never into it), at **cruise** (7 u above the surface), where it passes right over
+perched birds and gathers them. Thermals lift it (to 48 u) and it eases back down after. The high camera reads the whole town as a
+map, so the game is about where you go, not how high.
 
 ## The core loop and where mastery comes from
 
-Every few seconds: pick a target (a roof of grey birds, a wheeling grey flock, a rival you can beat), fly to it, gather or steal,
-watch your number jump, look for the next one, glance at the sun.
+Every few seconds: pick a target (a roof of grey birds, a wheeling grey flock, a rival you can beat, a rare bird's light), fly to
+it, gather or steal, watch your number jump and your Chorus climb, look for the next one, glance at the sun.
 
 | | A beginner | An expert |
 |---|---|---|
-| Gathering | Flies at roofs one at a time | Chains a route of perches and wires, rides thermals between them, shepherds a grey wheel into a clean pass |
-| Stealing | Hits whatever is smaller, often head-on into its thick front | Reads the overlap: slices the last fifth of a big flock's tail, crosses at right angles to cut more, keeps their own flock bunched with tight turns |
-| Boost | Holds it until empty and sheds birds | Taps it (the first 0.6 s is free) to strike or escape; boosts after leaving a thermal |
-| Altitude | Stays at cruise | Climbs over a bigger flock to escape, dives on prey for speed |
-| The hawk | Gets hit | Turns hard as the hawk folds its wings; trails the leader to scoop the birds the hawk scatters |
+| Gathering | Flies at roofs one at a time | Chains perches inside 2.6 s each to sing a Chorus of five (a free 4 s Tailwind) and six, rides thermals between them |
+| Stealing | Hits whatever is smaller, often head-on into its thick front | Reads the overlap: slices the last fifth of a big flock's tail (a **Tail cut** at 12 birds in one pass), crosses at right angles, keeps their own flock bunched with tight turns |
+| Rare birds | Finds one by chance | Plans a route through the landmarks before the rivals get there; a legendary is worth 400 song and 48 birds |
+| Boost | Holds it until empty and sheds birds | Taps it (the first 0.6 s is free) to strike or escape; boosts out of a thermal for a Slingshot |
+| The hawk | Gets hit | Turns hard as the hawk folds its wings (**Dodged**); trails the leader to scoop the birds the hawk scatters (**Scavenge**) |
 | Sundown | Hopes | Banks a lead early, then avoids every contact in the last 20 s, or saves a boost for one last tail cut |
 
 ## The rules
@@ -144,11 +151,38 @@ over 2.5 s. Free speed for whoever plans a route through them.
 - **Circle (4 s):** it glides down to circle high over its target, with a cry everyone hears (louder for the target). The target
   sees an Ember edge arrow toward it, an Ember aim ring on their flock and the hint "Hawk! Turn hard".
 - **Stoop (1.2 s):** it folds its wings and dives at where the flock's head will be in 1.2 s, extrapolated from the leader's
-  velocity when the dive begins (a rising whistle). A hard turn, a boost or a dive at that moment makes it miss.
+  velocity when the dive begins (a rising whistle). A hard turn or a boost at that moment makes it miss.
 - **Strike:** a 9 u sphere. Each flock inside loses **min(25% of its birds, 30% of its birds inside the sphere)** into a loose cloud
   at the strike point. A clean hit takes 15-25% (300 birds: ~64; 1,000 birds: ~16%); a partial hit less; a dodge nothing
   ("Dodged!" for a flock of 40+).
 - The scattered cloud is the catch-up: whoever is shadowing the leader scoops it up.
+
+### Rare birds
+
+Three a sunset, dealt from the sunset's seed onto the map's **landmarks** (a church spire, a mast, the lighthouse, a mill, a
+butte, a water tank): a bird of one of 23 species (the starling, everyone's first, is never dealt) circling its perch with a
+little grey flock of its own, under a pillar of light in its rarity's colour. **Common** 62% (12 birds with it), **rare** 30%
+(24), **legendary** 8% (48). The first lead bird to pass within 7 u of it (from 7 u under to 14 u over) catches it: the flock
+joins, the species goes into that player's Aviary, the birds slow for a beat, and its name rises as a callout. The light, and an
+edge pointer in its colour (with a star) to the nearest one off screen, say where; another player, or a rival passing by, can get there first.
+
+### Tricks and song
+
+**Song** is the game's points: what a sunset adds to your level. It never decides who wins (the flock at sundown does); it pays
+for playing well. The page reads the sky's events about its own flock (the same on the host and on a mirror) and calls each trick
+out over the flock with a note:
+
+| Trick | When | Song |
+|---|---|---|
+| Gather / steal | each bird joined / taken | 1 / 2 |
+| **Chorus** ×k | gathers (each a separate swoop, 0.6 s apart) in a row, each within 2.6 s of the last | 8 × (k − 1) for the k-th, pips under your number |
+| **Tailwind** | a Chorus of five | 4 s at boost speed for free: no stamina, no shedding |
+| **Tail cut** | 12 birds in one pass from a bigger flock | 50 |
+| **Scatter** | taking a flock's last bird | 80 |
+| **Dodged** / **Close call** | the hawk misses you / takes 3 or fewer | 60 / 20 |
+| **Scavenge** | 5+ birds at once from a loose cloud | 20 + the birds |
+| **Thermal** / **Slingshot** | a ride of 1 s+ / boosting out of one at once | 10 / 30 |
+| **Rare bird** | catching one | 60 / 140 / 400 by rarity |
 
 ### The sunset (a round)
 
@@ -163,8 +197,11 @@ over 2.5 s. Free speed for whoever plans a route through them.
   with a new flock (8) and at dawn.
 - Nobody flying (everyone on the title or in Migration) for 10 s: the sky **parks** (the clock stops, rival flocks keep flying for
   the title's view under a low ember sun). The next Fly starts a fresh dawn, so nobody's first sunset begins with 20 seconds left.
-- The world is a 600 × 600 u square; flight is kept inside a circle of radius 290 u around the town: from 255 u out the bird is
+- The world is a 640 × 640 u square; flight is kept inside a circle of radius 290 u around the town: from 255 u out the bird is
   turned gently home and a sea mist thickens. No walls.
+- **The places turn:** the shared sky flies each sunset in the next place at dawn: Saltmere Harbour, Redrock Canyon, Stormfield
+  (with its storm front), Lantern City, and round again. Everyone in the room is in the same place; a page that arrives mid-way
+  builds that one.
 
 ## Solo
 
@@ -197,7 +234,7 @@ Every rival also flees a storm front (Stormfield) before it reaches it.
 ### Migration (the solo series)
 
 Four places, one sunset each (2:00), each with its own map, twist and goal. It's a solo activity inside a public sky: the night
-screen offers it **only while you're alone in the room** (the title keeps its one button). While you're on a Migration you're
+screen offers it **only while you're alone in the room**. While you're on a Migration you're
 still in the room, but your flock isn't in the shared sky (the shared sky parks); the same rules run on your page. Pausable
 (`ow.on('pause')`, Esc, a hidden page). **If someone arrives mid-place**, the place ends at once and a sign says "Kestrel flew
 in" with **Fly**, back to the shared sky: never two sunsets at once in one room.
@@ -212,13 +249,25 @@ in" with **Fly**, back to the shared sky: never two sunsets at once in one room.
 Each place unlocks when the one before it earns a feather. Feathers (best per place, out of 12) are kept. A full run is about 10
 minutes; three feathers everywhere takes many tries. Results offer **Again**, **Next place** and **Back to the sky**.
 
-**How long solo lasts:** endless sunsets in the sky (personal best, leaderboards, three rival skills), plus Migration's 12 feathers.
+### The Daily Sunset
+
+One sunset a day that is the same for everyone: the day picks the place (in the rotation's order), its seed (the same perches,
+wheels, rare birds and spawns), 5-7 rivals, Normal or Hard, and how often the hawk comes (every 22, 28 or 34 s). It runs on your
+page like a Migration place (alone in the room only; from Today or the night screen), as often as you like; your best flock at
+sundown that day goes on the day's board (`ow.data` list `daily`: your best, pushed when it improves) and the first try of the day
+adds to "N flew it today" (`ow.data` counter `daily-flown`, reset daily). Its result shows your place, the day's board (top 5),
+the tally and **Again** / **Back to the sky**. It also counts for the day's goals, the week's "Fly the Daily Sunset on
+N days" and the `daily-sunset` badge.
+
+**How long solo lasts:** endless sunsets in the sky turning through four places (personal best, leaderboards, three rival
+skills), Migration's 12 feathers, a new Daily Sunset every day, and the long climb: 40 levels, 24 species, 8 trails, 7 flairs,
+16 badges.
 
 ## Multiplayer
 
 **A public drop-in sky**, `onceworlds.rooms.join({ maxPlayers: 12 })`, called as the page loads. No lobby, no ready-up: one sunset
 flows into the next with the night as a visible intermission (the platform guide's nonstop drop-in arena). Friends get private servers
-and invites from the platform; the game shows no server menus. The title's one button, Fly, puts you in the sky.
+and invites from the platform; the game shows no server menus. The title's Fly puts you in the sky.
 
 - **Seats:** up to 12 flocks: every flying player, plus rival flocks to make 7 (with 7+ players flying there are none). A player
   who arrives mid-sunset starts at once with 8 birds at the spawn point farthest from other flocks, shielded for 3 s. A rival
@@ -261,13 +310,47 @@ through calls every 700 ms. The game writes its `host:` values itself and checks
 
 ## Progression and reasons to come back
 
-- **Saved** (`ow.save`, key `profile`, written at sundown, at a Migration result and on a badge, never every frame): biggest flock
-  ever, biggest at sundown, sunsets flown, sunsets won, birds gathered and stolen in total, Migration feathers per place, rival
-  skill picked, which hints were seen.
-- **Personal bests** on the title (`Best 312`) and on the night screen ("New best!").
-- **Leaderboards:** `biggest-flock` (your biggest flock at sundown), `sundowns` (sunsets won, total), `feathers` (Migration
-  feathers, 0-12).
-- **Badges** (9):
+Three time scales, all paid in **song**:
+
+- **This sunset** (short): the flock at sundown, Chorus pips, trick callouts, a rare bird to chase, the sun clock.
+- **Today and this week** (mid): three daily goals and three weekly goals (below), the streak, the Daily Sunset's board.
+- **Always** (long): the level (1-40), the Aviary (24 species), trails and flair, badges, Migration's feathers, personal bests.
+
+**The night's tally.** Every sunset ends in a tally, line by line as it counts up: Flock at sundown (1 song a bird), First /
+Second / Third (150 / 90 / 50 with 3+ flocks), Gathers, steals and tricks, each rare bird caught (60 / 140 / 400), daily goals
+done (150 each), weekly goals done (500 each), First sunset today (100), and the streak (`N days running`, 25 a day up to 200).
+Then the level bar fills; a new level rings, and what it opens shows with a **Use** sign that puts it on at once.
+
+**Levels:** 1 to 40; level L to L+1 takes 300 + 90(L−1) + 5(L−1)² song (level 10 at about 7,000 song in all, 20 at 31,600,
+40 at 173,500). A first sunset pays 300-800; a strong one 2,500-4,500. About half an hour to level 10; 40 takes many evenings.
+
+**The Aviary** (B, or from the title or the night): every species as a portrait drawn with the game's own bird (24: 10 common,
+9 rare, 5 legendary), caught ones in colour with how many times, the rest as dark shapes named only by rarity. Tap a caught one
+and your lead bird *is* that species from then on (its colours, beak, crest, tail and streamers, in play, on the title's wire and
+on the board). Tabs for **Trails** (Streamers 1, Petals 2, Sparks 5, Lanterns 8, Comet 12, Rainbow 17, Feathers 24, Aurora 32)
+and **Flair** (how the whole flock shines: Plain 1, Shimmer 3, Dusk glow 6, Gilded tips 10, Stardust 14, Night lights 20,
+Ember 28), locked ones showing their level.
+
+**Daily goals** (Today, T): three a day from a pool of ten, the same for everyone (seeded by the day), sized to two or three good
+sunsets: gather 200-500, steal 40-150, a Chorus of 4-6, cut 1-3 tails, catch 1-2 rare birds, dodge the hawk, finish in the top
+three, lead a flock of 150-350, fly 2-3 sunsets, ride 3-5 thermals. They add up over the day's sunsets (the Chorus and the flock
+take the best one). Their ticks show on the night screen; the title's Today sign says `1/3`.
+
+**Weekly goals** (Today's middle column): three a week (weeks start Monday), bigger and summed over every sunset: fly 12-20
+sunsets, gather 2,500-5,000, steal 500-1,200, catch 4-8 rare birds, top three 5-8 times, cut 8-12 tails, fly the Daily Sunset
+on 3-5 days, finish 8-12 daily goals, sing 6-10 Choruses of five.
+
+**Streak:** a day with a sunset flown keeps it going (missing a day starts it over); shown big on Today and paid in the tally.
+
+**Saved** (`ow.save`, key `profile`, v2, checked field by field on load so a bad save can't break a page; written at sundown, at a
+result, on an equip and on a badge, never every frame): bests, sunsets flown and won, birds gathered and stolen, Migration
+feathers, rival skill, hints seen, song, the Aviary's counts, what's equipped, the streak, the day's goals and Daily Sunset best,
+the week's goals.
+
+**Leaderboards:** `biggest-flock` (biggest flock at sundown), `sundowns` (sunsets won), `feathers` (Migration, 0-12), `level`,
+`aviary` (species caught), and the Daily Sunset's own board each day.
+
+**Badges** (16):
 
 | id | Name | Earned by |
 |---|---|---|
@@ -280,16 +363,24 @@ through calls every 700 ms. The game writes its `host:` values itself and checks
 | `thermal-rider` | Thermal Rider | Ride 5 thermals in one sunset |
 | `migration` | Migration | Earn a feather in all four places |
 | `twelve-feathers` | Twelve Feathers | Earn all 12 feathers |
+| `full-chorus` | Full Chorus | Sing a Chorus of six |
+| `rare-bird` | Rare Bird | Catch a rare bird on its landmark |
+| `legendary` | Legendary | Catch a legendary bird |
+| `aviary-12` | Full Perch | Twelve species in the Aviary |
+| `level-ten` | Level Ten | Reach level 10 |
+| `seven-days` | Seven Sunsets | Fly on seven days in a row |
+| `daily-sunset` | Daily Sunset | Fly a Daily Sunset |
 
 ## Balance and timing
 
-All numbers live in one file (`src/sim/config.js`) that the game and the tests import.
+Flight and rule numbers live in `src/sim/config.js`, tricks in `src/sim/tricks.js`, song, levels and goals in
+`src/sim/progress.js`; the game and the tests import them.
 
 | Thing | Number |
 |---|---|
-| Lead bird speed | 14 u/s; boost 24 u/s (0.25 s to reach); dive up to ×1.25; climb ×0.85; thermal exit +30% over 2.5 s; up to 12% slower from 100 to 500 birds |
-| Turn rate | 110°/s (80°/s boosting), eased over 0.12 s, up to 30% wider for big flocks; bank up to 55° (drawn) |
-| Height band | floor surface + 2.5 u, cruise + 7, ceiling + 30 (+48 in a thermal); climb 7 u/s, dive 11 u/s, back to cruise 3 u/s |
+| Lead bird speed | 14 u/s; boost and Tailwind 24 u/s (0.25 s to reach); thermal exit +30% over 2.5 s; up to 12% slower from 100 to 500 birds |
+| Turn rate | 130°/s (95°/s boosting), eased over 0.12 s, up to 30% wider for big flocks; bank up to 55° (drawn) |
+| Height band | floor surface + 2.5 u, cruise + 7 (no climbing by hand); a thermal lifts 8 u/s to 48; back to cruise 3 u/s |
 | Stamina | 3 s; refill 4 s after a 0.4 s pause; 0.3 s to start; first 0.6 s of a boost free |
 | Shedding | 4% of n per s (min 1) once n > 12 |
 | Flock length | T = 0.5 + 0.08·√n s of the leader's path |
@@ -300,6 +391,10 @@ All numbers live in one file (`src/sim/config.js`) that the game and the tests i
 | Sunset | 3:00 (Migration 2:00), night 15 s; start 8 birds |
 | Wild | 1,200 per sunset (1,000 perched of 1,500 slots + 5 wheels × 40); Lantern City 1,600 |
 | Flocks | rivals fill to 7; at most 12 |
+| Rare birds | 3 a sunset on landmarks; 62 / 30 / 8% common / rare / legendary; 12 / 24 / 48 birds with them; catch within 7 u |
+| Tricks | Chorus gap 2.6 s (0.6 s is one gather), Tailwind at 5 for 4 s, Tail cut 12, Scavenge 5; song in the table under Rules |
+| Song | tally lines above; level L → L+1: 300 + 90(L−1) + 5(L−1)²; 40 levels |
+| Daily Sunset | 5-7 rivals, Normal or Hard, hawk every 22/28/34 s; the place follows the rotation by day |
 | Rival skill | the table under Solo |
 
 **Targets the tests hold the game to** (simulations of whole sunsets in node, many seeds, with rival flocks and scripted players):
@@ -320,58 +415,72 @@ All numbers live in one file (`src/sim/config.js`) that the game and the tests i
 There is no lobby screen: the sky is drop-in, and the night between sunsets is the intermission.
 
 The game's own buttons are **signs hung from a wire**: solid rectangles (gold for the main one, cream for the rest, 3 px corners,
-ink text, 56 px tall at least, the key shown on them) hanging by two thin strings from a sagging wire across the screen. At most
-two on a screen, never a stack.
+ink text, 56 px tall (48 for small ones), the key shown on them on a keyboard) hanging by two thin strings from a sagging wire
+across the screen. Text is at least 16 px everywhere; every screen fits a phone held either way (checked at 390×844 and 844×390).
 
-1. **Title.** The live sky behind (the real room's flocks, or the parked sky's rivals) from just behind a foreground telegraph
-   wire with 16 perched grey birds (the camera tilts up on a phone held upright, so the sky and roofs fill the tall frame).
-   "Birds of a Feather" in Bricolage Grotesque ExtraBold, cream with a thick ink outline: one line, centred, on landscape; three
-   lines on portrait. The **Fly** sign hangs by two strings from a wire drawn across the screen under the name, swinging a
-   little; `Best 312` in Big Shoulders beneath it. Nothing else. Music: the dusk pad, quiet.
-2. **Takeoff** (1.3 s): the wire birds burst up, the camera swoops down behind your lead bird.
+1. **Title.** From under a telegraph wire looking up into the live sunset: starlings perched dark against the sky, your own
+   lead bird among them in its species and flair, the town's roofs and smoke along the foot of the frame (on a short screen the
+   camera tilts higher so the wire sits under the signs). "Birds of a Feather" in Bricolage Grotesque ExtraBold, cream with a
+   thick ink outline (three lines on a phone held upright). **Fly** (gold, Space) on the wire, then **Today** `1/3` and
+   **Aviary**, and the level bar (`Level 8` and how far to 9). Music: the pad, a tine now and then, distant birds.
+2. **Takeoff** (1.3 s): the wire birds burst up, the camera swoops up behind and above your lead bird.
 3. **Play HUD**:
    - **Top centre: the sun clock.** A short ink horizon line, the sun's disc sinking into it as the sunset runs (its colour the
-     sky's sun), so its height reads as the time left. In the last 30 s the time appears beneath it in Big Shoulders (`0:24`),
-     with a soft bell each of the last 10 seconds.
-   - **Top right: the wires.** Up to 5 rows (3 + you on a phone held upright, under the clock): place numeral, the flock's
-     symbol in its colour, name, count. Each row sits on its own thin sagging wire; your row's wire is cream. No panel behind it:
-     cream text with an ink outline. It starts below whatever the platform reserves at the top (`ow.ui.reserved`).
-   - **Over every flock:** its count (Big Shoulders; yours 48 px, others 30-44 px by distance) with its symbol, the name beneath
-     (16 px). A rival's number is cream when it's smaller than yours (prey) and Ember with a jagged underline when it's bigger
-     (danger). Tags shrink with distance, never under 16 px, and fade beyond 220 u. Where flocks are close yours stays put
-     and the others stack clear of it, biggest first (up, else down); one with no room fades out until there is.
-   - **Your lead bird:** a thin cream ring under it, with the stamina arc in gold on it (only while not full).
-   - **Edge pointers:** the biggest rival (its symbol and count) when it's off screen; the hunting hawk (Ember, a hawk glyph) when
-     it's after you.
-   - **Floating numbers:** `+11` rises off your count's right shoulder (quick gains merge into one), `−18` in Ember drops
-     from its right foot; never on the number. The "54 vs 37 / thicker here" sign sits where the fight is, or left of your
-     count, or below whatever it would cover, and never over a count; signs and floats clear at sundown.
-   - **Hints:** centre of the upper third, Bricolage 700, 24-28 px, cream with an ink outline, fading in and out.
+     sky's sun). In the last 30 s the time appears beneath it (`0:24`), with a soft bell each of the last 10 seconds.
+   - **Top right: the board.** Up to 5 rows (3 under the clock on a phone held upright): place, the flock's symbol in its
+     colour, name, count, each row on its own thin wire, yours in gold. It starts below whatever the platform reserves.
+   - **Over every flock:** its count with its symbol, the name beneath. A rival's number is cream when it's smaller than yours
+     (prey) and Ember with a jagged underline when it's bigger (danger). Yours is the biggest, with the **Chorus pips** under it
+     (five, lighting as the Chorus climbs, a gold ring while a Tailwind blows).
+   - **Your lead bird:** a cream ring under it with the stamina arc in gold (only while not full).
+   - **Callouts:** a trick's name and song rise from where it happened (`Chorus ×4  +24`, `Tail cut  +50`, a rare bird's name in
+     its rarity's colour), short and big; `+11` rises off your count, `−18` in Ember drops from it.
+   - **Edge pointers:** the biggest rival (symbol and count) off screen, the nearest rare bird (a star in its colour), the
+     hunting hawk (Ember) when it's after you.
+   - **Hints:** centre of the upper third, 2-5 words, cream with an ink outline, fading in and out.
    - The top-left corner (the platform's menu) and the lower corners (stick, Boost) stay empty; layout follows `ow.ui.reserved`.
-4. **Sundown and the roost** (the night, 15 s). Your bird flies itself to the great wires over the harbour road and the camera
-   pulls back to them against the last light. Flocks land on them in their colours, one wire each, biggest on top (top 5, plus
-   yours), each bird flying to its own place on the wire. At 3 s a fanfare, and feathers in the winner's colour shower over its
-   wire. Each wire is labelled at its head: place, symbol, name, count. Above them one line says why: "Kestrel: biggest flock at
-   sundown, 412" (or "You: biggest flock at sundown, 847"), and "New best!" when it is. Badges earned pop as the platform's
-   notices. Signs: **Migration** (cream, only while you're alone in the room) and, for the host when rival flocks fly, **Rivals:
-   Easy · Normal · Hard** as three small tags on one wire (the chosen one gold). "Dawn in 7" counts down in Big Shoulders. Then
-   the dawn sweep and the next sunset, with no tap needed.
-5. **Migration route.** The coast seen from high at dusk; a dotted flight path of tiny bird glyphs links the four places. Each
-   stop: its name, its goal in a few words ("Finish first", "Keep 150"), its feathers (three feather shapes, filled or empty);
-   locked ones dim with a lock shape. Tapping a stop shows its **Fly** sign; **Back to the sky** sits on the same wire.
-6. **Migration place intro** (2 s, over a live flyover of the place): the place's name big and its goal under it, then play.
-7. **Migration result.** The roost scene of that place; the goal line ticked or not; feathers fill one by one with a chime each.
-   Signs: **Next place** (gold) or **Again**, and **Back to the sky**.
-8. **Migration pause.** "Paused", Resume (gold), Leave (cream), on the wire.
-9. **Room closed.** One message on the wire's sign and one button (see Multiplayer).
+4. **Sundown and the roost** (the night, 15 s). Your bird flies itself to the great wires and the camera pulls back to them
+   against the last light. Flocks land on them in their colours, one wire each, biggest on top; each wire is labelled at its
+   head (place, symbol, name, count; hidden on a phone, where the results need the room). At 3 s a fanfare and feathers in the
+   winner's colour. Above: why ("Kestrel: biggest flock at sundown, 412"), your place, "New best". Then the **tally** counting up
+   line by line with a tick each, the level bar filling (a level-up rings and shows what opened, with **Use**), and the day's
+   goals with their ticks beside it. Signs: **Migration** and **Daily Sunset** (only while you're alone in the room),
+   **Aviary**, and for the host when rival flocks fly, **Rivals: Easy · Normal · Hard**. "Dawn in 7" counts down; then the dawn
+   sweep and the next sunset (in the next place), with no tap needed.
+5. **Today** (T). Three columns (stacked on a phone held upright): the streak and the day's three goals; **This week** and its
+   three goals; the **Daily Sunset**: today's place, rivals and skill, the storm if it has one, your best, how many flew it, the
+   top five. Signs: **Daily Sunset** (gold, alone only) and **Back**.
+6. **Aviary** (B). `Aviary 7 of 24`, tabs **Birds**, **Trails**, **Flair**; a grid of tiles (8 across on a wide screen, 3 on a
+   phone), the equipped one ringed in gold. **Back** under it, or beside the tabs on a short screen.
+7. **Migration route.** The coast seen from high; a dotted path links the four places. Each stop: its name, its goal in a few
+   words, its feathers; locked ones dim. Tapping a stop shows its **Fly** sign; **Back to the sky** sits on the same wire.
+8. **Migration place intro / Daily Sunset intro** (2 s, over a live flyover): the place's name big and its goal, then play.
+9. **Migration result.** The goal line ticked or not; feathers fill one by one with a chime each; the tally. **Next place** (gold)
+   or **Again**, and **Back to the sky**. **Daily Sunset result:** your flock and place, "New best", the day's board, the tally,
+   **Again** and **Back to the sky**.
+10. **Pause** (Migration and the Daily Sunset): "Paused", Resume (gold), Leave.
+11. **Room closed.** One message on the wire's sign and one button (see Multiplayer).
 
 ## Art direction
 
-**The world:** Saltmere, a whitewashed harbour town on a hill above the sea at golden hour, seen from the sky: terracotta roofs,
-crooked chimneys, a church tower in the square, telegraph wires strung across every street and out over the fields, a lighthouse
-on a western headland, cliffs and sea stacks, a patchwork of wheat and green fields with hay bales and a windmill on the north
-hill, fishing boats in the harbour. Clean low-poly with soft, warm, physically lit materials; long sunset shadows; haze in the
-distance; the sea a mirror of the sky with a glitter path to the sun. The sun sets in the west over the sea.
+**The world:** four places seen from the sky at the golden hour, each a whole town or landscape built from code (no model
+files):
+- **Saltmere Harbour:** a whitewashed harbour town on a hill above the sea: barrel-tiled terracotta roofs, plastered walls with
+  shuttered windows and doors, balconies and flower boxes, chimneys with smoke, a church tower in the square, a fountain, market
+  stalls, washing across the lanes, a stone quay with bobbing boats, a lighthouse whose beam turns at dusk, a patchwork of fields
+  with hedges and hay bales, telegraph wires everywhere.
+- **Redrock Canyon:** terraced red mesas and buttes with banded strata, a river in its gorge with sand banks, a railway on a
+  timber trestle (battered bents and cross-braces), a water tank, junipers and scrub scattered over the flats.
+- **Stormfield:** wheat and green fields in rows, farms with plank barns and silos, a windmill with turning sails, lattice
+  pylons, and the storm front's dark wall rolling across.
+- **Lantern City:** dense rooftops and towers, lit windows and street lamps, flat roofs with parapets and clutter.
+
+The ground is painted once per place onto a canvas (tints, fields with rows, paved streets and squares, soft shade under every
+building) at twice the height grid's resolution, smoothed, then finished in the shader: grass, cobbles, paving, strata, shrubs
+with their shadows and pebbles scattered by noise, cloud shadows drifting over everything. The whole built world is one Lambert
+material whose surfaces (roof tiles, plaster, windows that light at dusk, planks, stone, swaying foliage) are drawn in the shader
+from a per-vertex code, merged into a handful of meshes. The sea: depth-tinted (shallows, sand, surf foam on the shore), rippled,
+mirroring the sky by Fresnel with a glitter path to the sun. Smoke rises in lumpy, lit plumes that lean with the wind.
 
 **Palette:**
 
@@ -400,25 +509,32 @@ every button hangs from it, every leaderboard row sits on one, the results are f
 the icon are drawn from it. The murmurations are the signature *in play*; the wire is what a screenshot remembers.
 
 **Light and camera:** a low directional sun with soft shadows (a tight shadow box that follows the player; map size by
-`ow.settings.quality`: low none, medium 1024, high 2048), a hemisphere light (sky colour over warm ground bounce), sRGB output,
-ACES tone mapping, exponential fog in the horizon's colour. The sky dome is a gradient shader with the sun's disc and a halo,
-driven by the sunset's time along with the sun's colour, intensity and angle: gold → orange → pink → dusk violet. Window lights
-come up in the dusk (emissive). Bloom on medium and high only (high threshold: the sun, its glitter, the windows). The camera
-chases from behind and above the lead bird, far enough to see the whole flock: the flock's length (T × 14 u) + 10 u back, up to
-46 u, and 5 u + a third of that above; ×1.3 further back on a phone held upright, with a field of view kept at about 50° across.
-It springs after the bird, banks a little into turns, widens its field of view on a boost, and never sinks below the surface. `ow.settings.reducedMotion`: no shake, no flashes, no roll, no field-of-view kick.
+`ow.settings.quality`: low none, medium 1024, high 2048), a hemisphere light with a cool sky fill over warm ground bounce, sRGB
+output, ACES tone mapping with the exposure lifted a little as the light goes, exponential fog in the horizon's colour. The sky
+dome is a gradient shader with the sun's disc and a halo, driven by the sunset's time along with the sun's colour, intensity and
+angle (kept from dropping too low, so dusk stays readable): gold → ember → rose → dusk violet. Window lights come up in the dusk.
+Bloom on medium and high only, then a grade pass: a little more saturation (held back in deep shadow and near white), a gentle
+contrast, and a vignette tinted by the sky. **The camera** looks down at 54° from high over a point between the lead bird and its
+flock's middle, a little ahead, at 50 + 1.75·√n u (so a bigger flock sees more of the map; 12% further on a phone held upright),
+44° field of view (about 48° across on a phone held upright). It turns with the bird's heading slowly, punches in on a big
+moment, widens on a boost, and never sinks below the surface. `ow.settings.reducedMotion`: no shake, no flashes, no punches.
 
-**Birds:** a low-poly bird (body, two hinged wings, tail; about 20 triangles) drawn instanced in three draw calls (flying,
-perched, lead birds) with a per-instance colour; wings flap in the vertex shader from a per-bird phase and rate, with glides
-mixed in by a slow wave, so a flock shimmers. Backs and wings are the flock's colour with a touch of emissive (it still reads at
-dusk), bellies dark ink, so a flock reads as its colour from any side. Birds steer toward their slots in the shape on a fixed
-30 Hz step; near flocks also keep apart through a spatial hash, far ones skip it. **Lead birds** are 1.65× bigger, with two
-ribbon streamers in their colour, and the flock's symbol on the tag. **The hawk** is four times a bird's size, dark umber.
+**Birds:** a songbird mesh (body, head, beak, two-jointed wings, tail, an optional crest and tail streamers) drawn instanced,
+coloured by region (back, belly, head, wing accent, beak); wings flap, bank and fold in the vertex shader from a per-bird phase
+and rate, with glides mixed in, so a flock shimmers; a rim of light from the sun. Flock birds take the flock's colour; perched
+grey birds are Ash. Birds steer toward their slots in the shape on a fixed 30 Hz step; near flocks also keep apart through a
+spatial hash. **Lead birds** are drawn at 7× a flock bird, in their player's chosen **species** (its colours and shape), with its
+**flair** (the whole flock's shine: a shimmer, a dusk glow, gilded tips, stardust, night lights, embers) and its **trail**
+(streamers, petals, sparks, lanterns, a comet, a rainbow, feathers, an aurora). **The hawk** is a raptor mesh, dark against
+the sky with an ember edge, wings folding into the stoop. Feathers are drawn as real feathers (a vane, a shaft, notches) that
+spin, flip and drift down.
 
-**Juice:** gathered birds burst up from a perch with a wing-clap and arrive with a colour flash; your count squashes and stretches
-on every change; a steal ripples colour through the losing flock with a rising chirp run; a big loss shakes the camera (trauma,
-decaying, squared, smooth); the hawk's strike has a 90 ms slow-motion on the birds and feathers bursting; thermals throw
-the flock upward with a whoosh; winning showers feathers in your colour. Particles scale with quality.
+**Juice:** gathered birds burst up from a perch with a wing-clap and arrive with a colour flash; each Chorus note rises a step
+in pitch and lights a pip; your count squashes and stretches on every change; a steal ripples colour through the losing flock
+with a rising chirp run; trick callouts pop and rise; a big hit holds the birds still for a frame or two; a rare bird's catch is a
+flare of its colour and a slow-motion beat; a big loss shakes the camera (trauma, decaying, squared, smooth); the hawk's strike
+slows the birds and bursts feathers; a Tailwind streams air past the flock; thermals throw it upward with a whoosh; winning
+showers feathers in your colour; the night's tally counts up with ticks and a level-up rings. Particles scale with quality.
 
 ## Sound
 
@@ -436,20 +552,26 @@ All synthesized with Web Audio; one mixer bus for effects and one for music (mus
 - **Clock:** a soft bell on each of the last 10 seconds; sundown is a deep bell and a held chord.
 - **Results:** a brass-like fanfare and a chorus of birdsong for the winner; a gentle resolved chord for everyone else.
 - **UI:** a wooden tick on signs.
-- **Music:** a small sequencer at 88 BPM in D. Gold: a warm pad and a plucked arpeggio. Orange: + soft bass and a shaker. Pink:
-  + a whistled melody (a sine with vibrato, like a bird). The last 30 s: + pulsing drums and a rising swell, up a semitone. Night:
-  a music-box lullaby. Title: the dusk pad and distant birds.
+- **Tricks:** each Chorus note a step up the scale; Tailwind a rushing sweep; Tail cut and Scatter a snap and a chirp run; a rare
+  bird a shimmer in its rarity; a goal a chime; the tally a tick per line and a rising run for a level.
+- **Music:** a sequencer at 92 BPM in D with a little swing, two composed tunes of eight bars that take turns. Title: a warm pad
+  (detuned saws through a lowpass), a tine now and then, distant birds. Gold: + a kalimba-like arpeggio walking the chord and a
+  shaker. Ember: + bass. Rose: + the whistled tune (a sine sliding in from the last note, with a breath of vibrato). Dusk: + a
+  soft kick. The last 30 s: up a whole tone, four to the floor, the tune an octave up. Night: a music-box lullaby. A gentle
+  limiter on the master keeps big gathers from clipping.
 
 ## Store art and the trailer
 
 All rendered by the game itself in poster mode (`?poster=<name>`: fixed seed, the moment staged and frozen, no HUD).
-- **Cover** (`thumb-1`): two huge murmurations colliding in front of the setting sun over Saltmere's roofs, Cobalt rippling into
-  Vermilion, their numbers over them; the name once, big.
-- **Action** (`thumb-2`): the hawk mid-stoop into a flock, birds bursting outward, close.
-- **Win** (`thumb-3`): sundown on the great wires: your flock on the top wire, the others below in order, feathers falling.
-- **Multi** (`thumb-4`): six flocks over the town, each with its number.
+- **Cover** (`thumb-1`): two huge murmurations colliding in front of the setting sun over Saltmere's roofs and lighthouse,
+  Cobalt against Vermilion, their numbers over them; the name once, big.
+- **Action** (`thumb-2`): from above, the hawk stooping into a Jade flock over the rooftops, its birds bursting white.
+- **Win** (`thumb-3`): sundown on the great wires: each flock on its wire in its colour, the labels in order, the town's windows lit.
+- **The game** (`thumb-4`): the play view as it is: your flock with its trail and lead bird cutting a Vermilion tail over the
+  town, a rare bird's flock nearby, the HUD (counts, `Chorus ×4`, `Tail cut`, the pips, the board, the sun clock).
 - **Icon:** a Cobalt flock curling behind its lead bird in front of a big sun's disc. No text.
-- **Badges:** each a bold symbol on a coloured disc (a bird on a wire, a hawk's head, a thermal spiral, feathers...).
+- **Badges** (16): each a bold symbol on a coloured disc (a bird on a wire, a hawk's head, a thermal spiral, feathers, a star
+  over a perched bird, a calendar of sunsets...).
 - **Trailer** (29 s, 1280×720, real play on autoplay: a Hard hunter's mind flies your bird): 0-11 s your flock over the
   rooftops and fields in gold light, count, sun clock and board in view, cutting rivals' tails ("thicker here") and growing
   from 300 to 600 (the goal); 11-22 s dusk, the clock counting down from 0:10, the hawk's aim ring on your flock, "Dodged!",
@@ -476,8 +598,10 @@ Journey's flight). What a player notices in the first minute that is different:
 - **Runaway leader:** the hawk hunts the biggest, big flocks have long thin tails, boosting sheds, scattered birds feed chasers;
   the balance tests above hold it.
 - **Twelve colours:** every flock also has a symbol, a name and a number.
-- **Altitude confusing:** cruise does everything a beginner needs; flocks within a few units of height always meet (vertical
-  distance counts 0.75×); you can't crash.
+- **Altitude confusing:** there is no altitude to steer: the bird holds cruise over whatever is under it and thermals lift it;
+  flocks within a few units of height always meet (vertical distance counts 0.75×); you can't crash.
+- **Nothing to come back for:** levels, the Aviary, trails and flair, daily and weekly goals, the streak and the Daily Sunset's
+  board (Progression); every sunset pays something toward them, win or lose.
 - **A lone player landing late in a sunset:** the parked sky starts fresh on their Fly.
 - **The host leaving mid-sunset:** everything that matters is in `host:` state and the clock is on `ow.now()`; rivals continue
   from the new host's mirror of them.
@@ -492,15 +616,19 @@ for the bloom pass, and self-hosted fonts. The SDK is the platform's `window.onc
 the platform (or a poster) plays on a stub room. No physics library: flight is a few lines of steering, and the flock is the
 shape above.
 
-- `src/sim/` (pure, no `window`, three.js or SDK; node tests import them): `config.js` (every number), `rng.js` (seeded),
+- `src/sim/` (pure, no `window`, three.js or SDK; node tests import them): `config.js` (flight and rule numbers), `rng.js` (seeded),
   `maps.js` (the four places: terrain heights, buildings, wires, perch slots, thermals, wheels' loops, spawns, from a seed),
   `flight.js` (a leader's flight: turning, the height band, boost, stamina, thermals, the boundary), `flock.js` (paths, the
   8-puff shape, local counts), `rivals.js` (the bots' thinking), `sky.js` (one whole sky: flight at a fixed 30 Hz, the rules
   (gathering, stealing, shedding, the hawk, the storm, the clock, spawns) at 10 Hz, giving events), `migration.js` (places,
-  goals, feathers), `wire.js` (state shapes, checks, the perch bitset). The own bird flies at a fixed 60 Hz on its page.
+  goals, feathers), `wire.js` (state shapes, checks, the perch bitset), `species.js` (the 24 birds), `tricks.js` (tricks and
+  their song from the sky's events), `progress.js` (the profile and its checks, levels, trails and flair, the tally, daily and
+  weekly goals, the streak, the Daily Sunset's spec). The own bird flies at a fixed 60 Hz on its page.
 - `src/net.js` (the room: presence, host state, events, host change, a stub room off the platform), `src/render/` (`view.js`
-  sky, light and bloom; `look.js` the sunset's colours; `world.js`; `birds.js`; `fx.js` ribbons, the hawk's flight, rings,
-  feathers, the storm), `src/hud.js` (a 2D canvas over the 3D one), `src/screens.js`
-  (title, night, Migration, the signs), `src/audio.js`, `src/poster.js`, `src/autoplay.js` (`?autoplay=1`, never in production:
-  a Hunter flies your bird, for the trailer), `src/main.js`.
+  sky, light, bloom and the grade; `look.js` the sunset's colours; `world.js` a place; `ground.js` the painted ground and its
+  shader; `town.js` buildings, the quay and the trestle; `worldmat.js` the one world material; `nature.js` trees; `props.js`;
+  `birdmesh.js` the songbird and the raptor; `birds.js` every bird; `portraits.js` the Aviary's pictures; `fx.js` trails,
+  rare-bird lights, the hawk's flight, rings, feathers, the storm), `src/hud.js` (a 2D canvas over the 3D one),
+  `src/screens.js` (title, night and tally, Today, the Aviary, Migration, results, the signs), `src/audio.js`, `src/poster.js`,
+  `src/autoplay.js` (`?autoplay=1`, only on a local address: a Hunter flies your bird, for the trailer), `src/main.js`.
 - `test/*.test.mjs` under `node --test`.
