@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <title>Birds of a Feather</title>
+    <link rel="preload" href="/fonts/bricolage-grotesque-latin-wght.woff2" as="font" type="font/woff2" crossorigin />
+    <style>
+      @font-face {
+        font-family: 'Bricolage Grotesque';
+        src: url('/fonts/bricolage-grotesque-latin-wght.woff2') format('woff2');
+        font-weight: 200 800;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: 'Big Shoulders Display';
+        src: url('/fonts/big-shoulders-display-latin-800.woff2') format('woff2');
+        font-weight: 800;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: 'Big Shoulders Display';
+        src: url('/fonts/big-shoulders-display-latin-900.woff2') format('woff2');
+        font-weight: 900;
+        font-display: swap;
+      }
+      :root {
+        --ink: #231a2e;
+        --cream: #fff1dc;
+        --gold: #ffb547;
+        --ember: #f05a3c;
+        --rose: #e8758f;
+        --teal: #1e5866;
+        --terracotta: #c0563a;
+        --num: 'Big Shoulders Display', 'Arial Narrow', sans-serif;
+        --txt: 'Bricolage Grotesque', system-ui, sans-serif;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        overscroll-behavior: none;
+        touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-tap-highlight-color: transparent;
+        background: linear-gradient(180deg, #5e9bd0 0%, #a9b9c8 38%, #ffd7a1 66%, #f5c690 100%);
+        color: var(--cream);
+        font-family: var(--txt);
+      }
+      #gl,
+      #hud {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+        touch-action: none;
+      }
+      #hud,
+      #ui {
+        pointer-events: none;
+      }
+      #ui {
+        position: fixed;
+        inset: 0;
+      }
+      #ui button {
+        pointer-events: auto;
+      }
+      .screen {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      .outline {
+        -webkit-text-stroke: 0.16em var(--ink);
+        paint-order: stroke fill;
+      }
+
+      /* the name */
+      .title-box {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 17%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      .game-name {
+        margin: 0;
+        font-weight: 800;
+        font-size: clamp(54px, 8.6vw, 128px);
+        line-height: 0.9;
+        letter-spacing: -0.025em;
+        text-align: center;
+        color: var(--cream);
+        -webkit-text-stroke: 0.11em var(--ink);
+        paint-order: stroke fill;
+        filter: drop-shadow(0 0.06em 0 var(--ink));
+      }
+      .game-name span {
+        display: inline-block;
+        margin: 0 0.13em;
+      }
+      .game-name span:nth-child(2) {
+        font-size: 0.62em;
+        color: var(--gold);
+      }
+      @media (max-aspect-ratio: 1/1) {
+        .title-box {
+          top: 13%;
+        }
+        .game-name {
+          font-size: clamp(64px, 19vw, 120px);
+        }
+        .game-name span {
+          display: block;
+        }
+      }
+      .best {
+        margin-top: 18px;
+        font: 900 30px var(--num);
+        color: var(--cream);
+        -webkit-text-stroke: 6px var(--ink);
+        paint-order: stroke fill;
+      }
+
+      /* signs hung from a wire */
+      .wireset {
+        position: relative;
+        width: min(100%, 760px);
+        margin-top: 3vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      .wireset .wire {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 34px;
+        overflow: visible;
+      }
+      .wireset .wire path {
+        fill: none;
+        stroke: var(--ink);
+        stroke-width: 3px;
+        vector-effect: non-scaling-stroke;
+      }
+      .signs {
+        position: relative;
+        display: flex;
+        gap: 26px;
+        padding-top: 46px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+      .sign {
+        position: relative;
+        min-height: 56px;
+        min-width: 136px;
+        padding: 0 22px;
+        border: 3px solid var(--ink);
+        border-radius: 3px;
+        background: var(--cream);
+        color: var(--ink);
+        font: 800 24px/1 var(--txt);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        box-shadow: 0 5px 0 var(--ink);
+        cursor: pointer;
+        transform-origin: 50% -34px;
+        animation: swing 2.6s ease-in-out infinite alternate;
+      }
+      .sign:nth-child(2) {
+        animation-delay: -1.3s;
+      }
+      .sign::before,
+      .sign::after {
+        content: '';
+        position: absolute;
+        top: -33px;
+        width: 2.5px;
+        height: 30px;
+        background: var(--ink);
+      }
+      .sign::before {
+        left: 20%;
+      }
+      .sign::after {
+        right: 20%;
+      }
+      .sign.gold {
+        background: var(--gold);
+        min-height: 66px;
+        min-width: 176px;
+        font-size: 32px;
+      }
+      .sign.small {
+        min-height: 48px;
+        min-width: 86px;
+        padding: 0 14px;
+        font-size: 19px;
+        animation: none;
+      }
+      .sign.small::before,
+      .sign.small::after {
+        display: none;
+      }
+      .sign kbd {
+        font: 700 14px/1 var(--txt);
+        border: 2px solid var(--ink);
+        border-radius: 3px;
+        padding: 4px 6px;
+      }
+      .sign:active {
+        transform: translateY(4px);
+        box-shadow: 0 1px 0 var(--ink);
+      }
+      @media (hover: none) {
+        .sign kbd {
+          display: none;
+        }
+      }
+      @keyframes swing {
+        from {
+          transform: rotate(-1.4deg);
+        }
+        to {
+          transform: rotate(1.4deg);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .sign {
+          animation: none;
+        }
+      }
+      .tap-sound {
+        position: absolute;
+        left: 50%;
+        bottom: 22%;
+        transform: translateX(-50%);
+        min-height: 56px;
+        padding: 0 24px;
+        border: 3px solid var(--ink);
+        border-radius: 3px;
+        background: var(--cream);
+        color: var(--ink);
+        font: 800 22px var(--txt);
+        box-shadow: 0 5px 0 var(--ink);
+      }
+
+      /* the night: results over the roost */
+      .night-box,
+      .result-box,
+      .pause-box,
+      .notice-box,
+      .route-box,
+      .intro-box {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      .night-lines {
+        margin-top: max(96px, 12vh);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        padding: 0 16px;
+        text-align: center;
+      }
+      .line {
+        font: 800 clamp(20px, 2.6vw, 28px) var(--txt);
+        color: var(--cream);
+        -webkit-text-stroke: 0.2em var(--ink);
+        paint-order: stroke fill;
+      }
+      .line.win,
+      .line.newbest {
+        color: var(--gold);
+      }
+      .night-box .night-wire,
+      .night-box .skill-row,
+      .night-box .dawn {
+        position: relative;
+      }
+      .night-box .bottom {
+        margin-top: auto;
+        margin-bottom: 4vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 100%;
+      }
+      .skill-row {
+        margin-top: 18px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .skill-label {
+        font: 800 20px var(--txt);
+        -webkit-text-stroke: 0.22em var(--ink);
+        paint-order: stroke fill;
+        margin-right: 4px;
+      }
+      .dawn {
+        margin-top: 14px;
+        font: 900 34px var(--num);
+        color: var(--cream);
+        -webkit-text-stroke: 6px var(--ink);
+        paint-order: stroke fill;
+        min-height: 40px;
+      }
+
+      /* Migration */
+      .route-title,
+      .result-name,
+      .intro-name,
+      .pause-title,
+      .notice-title {
+        margin: 0;
+        font: 800 clamp(40px, 6vw, 72px) / 1 var(--txt);
+        letter-spacing: -0.02em;
+        color: var(--cream);
+        -webkit-text-stroke: 0.12em var(--ink);
+        paint-order: stroke fill;
+        filter: drop-shadow(0 0.06em 0 var(--ink));
+        text-align: center;
+        padding: 0 16px;
+      }
+      .route-title {
+        margin-top: max(84px, 9vh);
+      }
+      .route {
+        margin-top: 4vh;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 170px));
+        gap: 18px;
+        padding: 0 16px;
+      }
+      @media (max-width: 720px) {
+        .route {
+          grid-template-columns: repeat(2, minmax(0, 170px));
+          gap: 14px;
+        }
+      }
+      .stop {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+        min-height: 128px;
+        padding: 12px 14px;
+        border: 3px solid var(--ink);
+        border-radius: 3px;
+        background: var(--cream);
+        color: var(--ink);
+        box-shadow: 0 5px 0 var(--ink);
+        text-align: left;
+        cursor: pointer;
+      }
+      .stop:active {
+        transform: translateY(4px);
+        box-shadow: 0 1px 0 var(--ink);
+      }
+      .stop.locked {
+        background: #b9ad9f;
+        cursor: default;
+      }
+      .stop-n {
+        font: 900 30px/1 var(--num);
+        color: var(--terracotta);
+      }
+      .stop-name {
+        font: 800 19px/1.05 var(--txt);
+      }
+      .stop-goal {
+        font: 700 16px/1.1 var(--txt);
+        color: #5b4a52;
+      }
+      .feathers {
+        display: flex;
+        gap: 2px;
+        margin-top: auto;
+      }
+      .feather {
+        width: 26px;
+        height: 26px;
+      }
+      .feather path {
+        fill: none;
+        stroke: var(--ink);
+        stroke-width: 1.6px;
+      }
+      .feather.on path {
+        fill: var(--gold);
+      }
+      .feather.new {
+        animation: pop 0.5s ease-out;
+      }
+      @keyframes pop {
+        0% {
+          transform: scale(0.4);
+        }
+        60% {
+          transform: scale(1.35);
+        }
+        100% {
+          transform: scale(1);
+        }
+      }
+      .intro-box {
+        justify-content: flex-start;
+        padding-top: 22vh;
+      }
+      .intro-n {
+        font: 900 26px var(--num);
+        color: var(--gold);
+        -webkit-text-stroke: 6px var(--ink);
+        paint-order: stroke fill;
+      }
+      .intro-goal {
+        margin-top: 10px;
+        font: 800 26px var(--txt);
+        -webkit-text-stroke: 0.2em var(--ink);
+        paint-order: stroke fill;
+      }
+      .result-box {
+        padding-top: max(90px, 10vh);
+      }
+      .result-line {
+        margin-top: 8px;
+        font: 900 40px var(--num);
+        -webkit-text-stroke: 7px var(--ink);
+        paint-order: stroke fill;
+      }
+      .goals {
+        margin-top: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .goal {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font: 800 22px var(--txt);
+        -webkit-text-stroke: 0.2em var(--ink);
+        paint-order: stroke fill;
+      }
+      .goal .feather {
+        width: 32px;
+        height: 32px;
+      }
+      .goal .feather path {
+        stroke: var(--ink);
+        stroke-width: 2px;
+        fill: rgba(255, 241, 220, 0.35);
+      }
+      .goal .feather.on path {
+        fill: var(--gold);
+      }
+      .result-box .wireset,
+      .pause-box .wireset,
+      .notice-box .wireset,
+      .route-box .wireset {
+        margin-top: auto;
+        margin-bottom: 6vh;
+      }
+      .pause-box,
+      .notice-box {
+        padding-top: 26vh;
+      }
+      .pause-box .wireset,
+      .notice-box .wireset {
+        margin-top: 4vh;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="gl"></canvas>
+    <canvas id="hud"></canvas>
+    <div id="ui">
+      <div id="boot" class="screen title">
+        <div class="title-box">
+          <h1 class="game-name"><span>Birds</span><span>of a</span><span>Feather</span></h1>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/index.js"></script>
+  </body>
+</html>
