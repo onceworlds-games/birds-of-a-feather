@@ -489,7 +489,9 @@ function titleWant(map, out, look) {
   // below the wire, looking up: the birds stand dark against the sunset, chimneys and roofs along the foot of the frame
   out.set(T.camera[0], T.camera[1] - 5.6, T.camera[2]);
   const far = Math.hypot(T.look[0] - out.x, T.look[2] - out.z);
-  look.set(T.look[0] + Math.sin(t * 0.07) * 14, out.y + far * Math.tan(0.6 + Math.sin(t * 0.05) * 0.01), T.look[2] + Math.cos(t * 0.06) * 14);
+  // short screens (phones on their side) look higher, so the wire sits under the buttons
+  const tilt = 0.6 + (view.height < 560 && !portrait() ? 0.16 : 0);
+  look.set(T.look[0] + Math.sin(t * 0.07) * 14, out.y + far * Math.tan(tilt + Math.sin(t * 0.05) * 0.01), T.look[2] + Math.cos(t * 0.06) * 14);
   // upright phones: tilt up, so the sky and the roofs fill the tall frame instead of the dark field
   if (portrait()) {
     out.x += 6;
@@ -985,7 +987,10 @@ function newSunsetView() {
   S.nightResults = false;
   S.lastLeft = 999;
   newRun();
-  if (S.mode === 'sky' && screens.current === 'night') screens.clear();
+  if (S.mode === 'sky' && screens.current === 'night') {
+    screens.clear();
+    controls(true);
+  }
 }
 
 /** The shared sky moved on to its next place at dawn: build that place (Migration and the Daily Sunset keep their own). */
@@ -1100,6 +1105,8 @@ function nightLines(sky) {
 
 function showNight(sky) {
   S.nightShown = true;
+  // the flock is on its wire: the screen's buttons need the whole screen
+  controls(false);
   const hostRivals = net.authority && [...sky.flocks.values()].some((f) => f.kind === 'rival');
   screens.night({
     lines: nightLines(sky),
@@ -1671,8 +1678,9 @@ function buildHud(sky) {
   clockS.label = '';
   hs.clock = night ? null : clockS;
   if (night) {
-    // labels on the roost wires
+    // labels on the roost wires (a phone has no room for them under the night's results)
     const st = sky.standings ?? [];
+    if (S.nightShown && screens.current === 'night' && (narrow || view.height < 560)) return;
     for (let k = 0; k < st.length; k++) {
       const w = S.roostMap?.get(st[k].id);
       if (w === undefined || labels.length >= labelPool.length) continue;

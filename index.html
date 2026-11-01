@@ -303,11 +303,18 @@
         align-items: center;
         width: 100%;
       }
-      .skill-row {
+      .skill-row,
+      .skill-group {
         margin-top: 18px;
         display: flex;
         align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
         gap: 10px;
+      }
+      .skill-group {
+        margin-top: 0;
+        flex-wrap: nowrap;
       }
       .skill-label {
         font: 800 20px var(--txt);
@@ -696,13 +703,6 @@
         width: 28px;
         height: 28px;
       }
-      .goals-head {
-        margin-top: 6px;
-        font: 800 22px var(--txt);
-        color: var(--gold);
-        -webkit-text-stroke: 5px var(--ink);
-        paint-order: stroke fill;
-      }
       .goals-full.week .dgoal {
         font-size: 19px;
       }
@@ -727,16 +727,25 @@
       .today-cols {
         margin-top: 3vh;
         display: flex;
-        gap: 48px;
+        gap: 28px 44px;
         flex-wrap: wrap;
         justify-content: center;
         align-items: flex-start;
+        flex: 0 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        pointer-events: auto;
+        touch-action: pan-y;
+        padding: 4px 8px 10px;
       }
       .today-col {
         display: flex;
         flex-direction: column;
         gap: 14px;
-        min-width: min(340px, 90vw);
+        min-width: min(320px, 88vw);
+      }
+      .col-head {
+        display: none;
       }
       .streak-big {
         display: flex;
@@ -814,7 +823,11 @@
         gap: 14px;
       }
       .aviary-head .route-title {
+        margin-top: 0;
         font-size: clamp(36px, 5vw, 56px);
+      }
+      .aviary-head .head-back {
+        display: none;
       }
       .aviary-count {
         font: 900 28px var(--num);
@@ -835,7 +848,8 @@
         overflow-y: auto;
         touch-action: pan-y;
         padding: 4px 4px 10px;
-        max-height: calc(100% - 240px);
+        flex: 0 1 auto;
+        min-height: 0;
       }
       .aviary-grid.trails,
       .aviary-grid.flair {
@@ -1003,6 +1017,43 @@
         .night-mid {
           gap: 12px;
         }
+        .night-lines {
+          margin-top: 72px;
+        }
+        .night-box .signs {
+          gap: 12px;
+          padding-top: 36px;
+          flex-wrap: nowrap;
+        }
+        .night-box .sign {
+          min-width: 0;
+          min-height: 52px;
+          padding: 0 16px;
+          font-size: 20px;
+        }
+        .night-box .skill-row {
+          margin-top: 12px;
+          gap: 8px 10px;
+        }
+        .night-box .skill-group {
+          gap: 8px;
+        }
+        .night-box .skill-group .sign.small {
+          min-width: 64px;
+          padding: 0 12px;
+        }
+        .night-box .bottom {
+          margin-bottom: 2vh;
+        }
+        .night-box .dawn {
+          margin-top: 6px;
+          font-size: 28px;
+        }
+      }
+      @media (max-width: 480px) {
+        .aviary-grid {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
       }
       /* short screens (phones held sideways): smaller, in two columns where it helps */
       @media (max-height: 560px) {
@@ -1047,8 +1098,80 @@
         .route-title {
           font-size: 38px;
         }
+        .aviary-head {
+          flex-wrap: nowrap;
+          gap: 24px;
+        }
+        .aviary-head .route-title {
+          font-size: 34px;
+        }
+        .aviary-head .head-back {
+          display: flex;
+        }
+        .aviary-box .aviary-wire {
+          display: none;
+        }
         .aviary-grid {
-          max-height: calc(100% - 230px);
+          margin-top: 10px;
+          padding-bottom: 16px;
+        }
+        .aviary-grid .tile .pic {
+          width: 72px;
+          height: 72px;
+          margin: -2px 0 -4px;
+        }
+        .today-box > .route-title {
+          display: none;
+        }
+        .today-box .col-head {
+          display: block;
+        }
+        .today-cols {
+          margin-top: 64px;
+          flex-wrap: nowrap;
+          gap: 28px;
+          width: 100%;
+        }
+        .today-col {
+          min-width: 0;
+          flex: 1 1 0;
+          max-width: 300px;
+          gap: 8px;
+        }
+        .today-box .goals-full .dgoal {
+          font-size: 17px;
+          gap: 8px;
+        }
+        .today-box .goals-full .dgoal-mark {
+          width: 22px;
+          height: 22px;
+        }
+        .today-box .dgoal-n {
+          font-size: 18px;
+        }
+        .today-box .streak-n {
+          font-size: 40px;
+          -webkit-text-stroke-width: 7px;
+        }
+        .today-box .daily-name {
+          font-size: 26px;
+        }
+        .today-box .daily-sub,
+        .today-box .streak-l {
+          font-size: 17px;
+        }
+        .today-box .brow:nth-child(n + 4) {
+          display: none;
+        }
+        .today-box .wireset,
+        .aviary-box .wireset {
+          margin-bottom: 1vh;
+        }
+        .today-box .signs {
+          padding-top: 34px;
+        }
+        .today-box .sign {
+          min-height: 48px;
         }
         .title-box {
           top: 8%;

@@ -302,10 +302,12 @@ export class Screens {
     row.appendChild(sign('Aviary', { small: true, onClick: onAviary, sound: this.tick }));
     this.keys.set('b', onAviary);
     if (skill) {
-      row.appendChild(el('span', 'skill-label', 'Rivals'));
+      const group = el('div', 'skill-group');
+      group.appendChild(el('span', 'skill-label', 'Rivals'));
       for (const [id, label] of [['easy', 'Easy'], ['normal', 'Normal'], ['hard', 'Hard']]) {
-        row.appendChild(sign(label, { small: true, gold: skill === id, onClick: () => onSkill(id), sound: this.tick }));
+        group.appendChild(sign(label, { small: true, gold: skill === id, onClick: () => onSkill(id), sound: this.tick }));
       }
+      row.appendChild(group);
     }
     bottom.appendChild(row);
     const dawn = el('div', 'dawn', '');
@@ -420,6 +422,7 @@ export class Screens {
     box.appendChild(el('h2', 'route-title', 'Today'));
     const cols = el('div', 'today-cols');
     const left = el('div', 'today-col');
+    left.appendChild(el('div', 'intro-n col-head', 'Today'));
     if (streak > 0) {
       const s = el('div', 'streak-big');
       s.append(el('span', 'streak-n', String(streak)), el('span', 'streak-l', streak === 1 ? 'day' : 'days running'));
@@ -428,13 +431,15 @@ export class Screens {
     const gl = el('div', 'goals-full');
     for (const g of goals) gl.appendChild(goalLine(g));
     left.appendChild(gl);
+    cols.appendChild(left);
     if (week?.length) {
-      left.appendChild(el('div', 'goals-head', 'This week'));
+      const mid = el('div', 'today-col week-col');
+      mid.appendChild(el('div', 'intro-n', 'This week'));
       const wl = el('div', 'goals-full week');
       for (const g of week) wl.appendChild(goalLine(g));
-      left.appendChild(wl);
+      mid.appendChild(wl);
+      cols.appendChild(mid);
     }
-    cols.appendChild(left);
     const right = el('div', 'today-col daily-col');
     right.appendChild(el('div', 'intro-n', 'Daily Sunset'));
     right.appendChild(el('div', 'daily-name', daily.place));
@@ -473,6 +478,9 @@ export class Screens {
       tabs.appendChild(sign(label, { small: true, gold: tab === id, onClick: () => onTab(id), sound: this.tick }));
     }
     head.appendChild(tabs);
+    const back = sign('Back', { small: true, onClick: onBack, sound: this.tick });
+    back.classList.add('head-back');
+    head.appendChild(back);
     box.appendChild(head);
     const grid = el('div', `aviary-grid ${tab}`);
     if (tab === 'birds') {
