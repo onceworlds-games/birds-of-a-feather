@@ -25,13 +25,20 @@ export class Audio {
       const ctx = new AC();
       this.ctx = ctx;
       this.master = ctx.createGain();
-      this.master.gain.value = 0.8;
-      this.master.connect(ctx.destination);
+      this.master.gain.value = 0.95;
+      // a gentle limiter, so a big gather's chirps never clip
+      const comp = ctx.createDynamicsCompressor();
+      comp.threshold.value = -14;
+      comp.knee.value = 10;
+      comp.ratio.value = 4;
+      comp.attack.value = 0.004;
+      comp.release.value = 0.2;
+      this.master.connect(comp).connect(ctx.destination);
       this.fx = ctx.createGain();
       this.fx.gain.value = 0.9;
       this.fx.connect(this.master);
       this.mus = ctx.createGain();
-      this.mus.gain.value = 0.32;
+      this.mus.gain.value = 0.4;
       this.mus.connect(this.master);
       // a soft room for everything
       const rev = ctx.createConvolver();
@@ -369,63 +376,211 @@ export class Audio {
     });
   }
 
-  /** The sequencer: 88 BPM in D, a layer added as the light changes. */
+  /** The sequencer: 92 BPM in D with a little swing; a layer comes in as the light changes, the last half minute lifts a tone. */
   sequence(phase, last30) {
     const ctx = this.ctx;
     const m = this.music;
-    const beat = 60 / 88 / 2; // eighth notes
+    const beat = 60 / 92 / 2; // eighth notes
     if (m.next < ctx.currentTime - 0.5) m.next = ctx.currentTime + 0.05;
     while (m.next < ctx.currentTime + 0.25) {
-      this.playStep(m.step, m.next, phase, last30);
+      // the off-beats lean late
+      const swing = m.step % 2 === 1 ? beat * 0.16 : 0;
+      this.playStep(m.step, m.total ?? 0, m.next + swing, phase, last30);
       m.step = (m.step + 1) % 64;
+      m.total = (m.total ?? 0) + 1;
       m.next += beat;
     }
   }
 
-  playStep(s, t, phase, last30) {
-    const bar = Math.floor(s / 8) % 4;
-    const chords = [
-      [50, 57, 62, 66],
-      [47, 54, 59, 62],
-      [43, 50, 55, 59],
-      [45, 52, 57, 61],
-    ];
-    const up = last30 ? 1 : 0;
-    const ch = chords[bar].map((m) => m + up);
+  playStep(s, total, t, phase, last30) {
+    const bar = Math.floor(s / 8);
+    const half = Math.floor(total / 64) % 2; // the two tunes take turns
+    const night = phase === 'night';
+    const song = night ? LULLABY : SONGS[last30 ? 0 : half];
+    const key = last30 ? 2 : 0;
+    const ch = CHORDS[song.chords[bar]].map((n) => n + key);
     const dest = this.mus;
-    const order = ['title', 'gold', 'ember', 'rose', 'dusk', 'night'];
-    const lvl = order.indexOf(phase);
-    if (phase === 'night') {
-      // a music-box lullaby
-      if (s % 2 === 0) {
-        const m = ch[(s / 2) % 4] + 24;
-        this.tone('sine', mtof(m), mtof(m), t, 0.003, 0.8, 0.05, dest, 0.6);
-      }
+    const lvl = ORDER.indexOf(phase);
+    if (night) {
+      // a music box over a low pad, slower
+      if (s % 8 === 0) this.pad(ch, t, 2.6, 600, 0.6);
+      for (const [at, n, len] of song.notes) if (at === s) this.musicBox(n, t, len * 0.33);
       return;
     }
-    // the pad, every bar
-    if (s % 8 === 0) for (const m of ch) this.tone('triangle', mtof(m + 12), mtof(m + 12), t, 0.6, 2.2, phase === 'title' ? 0.03 : 0.04, dest, 0.5);
+    const bright = 700 + Math.max(0, lvl) * 260 + (last30 ? 500 : 0);
+    if (s % 8 === 0) this.pad(ch, t, 2.7, bright, phase === 'title' ? 0.75 : 1);
     if (phase === 'title') {
+      // a tine now and then, and the birds on the wire
+      if (s % 4 === 0) this.kalimba(ch[1 + ((s / 4) % 3)] + 24, t, 0.035);
       if (s % 16 === 6 && Math.random() < 0.6) this.chirp(t, D_MAJOR_PENTA[6 + Math.floor(Math.random() * 4)], true, 0.025);
       return;
     }
-    // plucked arpeggio
-    if (s % 2 === 0) {
-      const m = ch[(s / 2) % 4] + 24;
-      this.tone('triangle', mtof(m), mtof(m), t, 0.003, 0.25, 0.04, dest, 0.3);
+    // the tines: an arpeggio that walks the chord
+    const arp = ARP[(bar + half) % ARP.length][s % 8];
+    if (arp >= 0 && (s % 2 === 0 || lvl >= 2)) this.kalimba(ch[arp] + 24, t, s % 2 === 0 ? 0.06 : 0.035);
+    // the shaker on the off-beats, then on every step at the end
+    if (s % 2 === 1 || last30) this.shaker(t, s % 4 === 3 ? 0.03 : 0.018);
+    if (lvl >= 2 || last30) {
+      // the bass: root on the beat, a bounce to the fifth
+      if (s % 4 === 0) this.bass(ch[0] - 12, t, 0.5);
+      else if (s % 4 === 3 && lvl >= 3) this.bass(ch[0] - 5, t, 0.2);
+      else if (last30 && s % 2 === 0) this.bass(ch[0] - 12, t, 0.18);
     }
-    if (lvl >= 2) {
-      if (s % 4 === 0) this.tone('sine', mtof(ch[0] - 12), mtof(ch[0] - 12), t, 0.01, 0.35, 0.12, dest);
-      if (s % 2 === 1) this.burst(t, 7000, 1, 0.002, 0.05, 0.025);
+    if (lvl >= 3 || last30) {
+      // the whistled tune
+      const up = last30 ? 12 : 0;
+      for (const [at, n, len] of song.notes) if (at === s) this.whistle(n + key + up - 12, t, len * 0.33, last30 ? 0.1 : 0.09);
     }
-    if (lvl >= 3 && s % 8 === 4) {
-      // the whistled melody
-      const m = D_MAJOR_PENTA[(s * 3 + bar * 2) % 7] + 12 + up;
-      this.tone('sine', mtof(m), mtof(m) * 1.01, t, 0.05, 0.5, 0.035, dest, 0.5);
-    }
-    if (last30) {
-      if (s % 4 === 0) this.tone('sine', 110, 45, t, 0.002, 0.18, 0.22, dest);
-      if (s % 8 === 4) this.burst(t, 1800, 0.7, 0.002, 0.12, 0.08);
+    if (lvl >= 4 || last30) {
+      // a soft kick, then four to the floor
+      if (s % 8 === 0 || s % 8 === 4 || (last30 && s % 2 === 0)) this.kick(t, last30 ? 0.24 : 0.16);
     }
   }
+
+  // ---- the band
+
+  /** A warm pad: two detuned saws a note, through a lowpass, swelling in. */
+  pad(ch, t, len, cutoff, k = 1) {
+    const ctx = this.ctx;
+    const f = ctx.createBiquadFilter();
+    f.type = 'lowpass';
+    f.frequency.setValueAtTime(cutoff * 0.6, t);
+    f.frequency.linearRampToValueAtTime(cutoff, t + len * 0.5);
+    f.Q.value = 0.7;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.022 * k, t + 0.7);
+    g.gain.setValueAtTime(0.022 * k, t + len - 0.4);
+    g.gain.linearRampToValueAtTime(0.0001, t + len + 0.5);
+    f.connect(g).connect(this.mus);
+    const send = ctx.createGain();
+    send.gain.value = 0.5;
+    g.connect(send).connect(this.rev);
+    for (const n of ch) {
+      for (const det of [-7, 7]) {
+        const o = ctx.createOscillator();
+        o.type = 'sawtooth';
+        o.frequency.value = mtof(n + 12);
+        o.detune.value = det;
+        o.connect(f);
+        o.start(t);
+        o.stop(t + len + 0.6);
+      }
+    }
+  }
+
+  /** A tine: a sine and its bright, quick overtone. */
+  kalimba(n, t, peak) {
+    this.tone('sine', mtof(n), mtof(n), t, 0.002, 0.55, peak, this.mus, 0.35);
+    this.tone('sine', mtof(n) * 4.2, mtof(n) * 4.2, t, 0.001, 0.06, peak * 0.35, this.mus, 0.2);
+  }
+
+  musicBox(n, t, len) {
+    this.tone('sine', mtof(n), mtof(n), t, 0.003, 0.9 + len, 0.05, this.mus, 0.6);
+    this.tone('sine', mtof(n) * 3, mtof(n) * 3, t, 0.002, 0.25, 0.012, this.mus, 0.5);
+  }
+
+  bass(n, t, d) {
+    this.tone('sine', mtof(n), mtof(n), t, 0.008, d, 0.13, this.mus);
+    this.tone('triangle', mtof(n + 12), mtof(n + 12), t, 0.008, d * 0.6, 0.025, this.mus);
+  }
+
+  /** The whistle: a sine with a breath of vibrato that slides in from the last note. */
+  whistle(n, t, len, peak) {
+    const ctx = this.ctx;
+    const m = this.music;
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    const f = mtof(n);
+    const from = m.lastWhistle && t - m.lastWhistleT < 1.2 ? m.lastWhistle : f;
+    o.frequency.setValueAtTime(from, t);
+    o.frequency.exponentialRampToValueAtTime(f, t + 0.05);
+    const lfo = ctx.createOscillator();
+    lfo.frequency.value = 5.6;
+    const depth = ctx.createGain();
+    depth.gain.setValueAtTime(0, t);
+    depth.gain.linearRampToValueAtTime(f * 0.006, t + Math.min(0.35, len));
+    lfo.connect(depth).connect(o.frequency);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + 0.04);
+    g.gain.setValueAtTime(peak, t + Math.max(0.05, len - 0.05));
+    g.gain.exponentialRampToValueAtTime(0.0001, t + len + 0.18);
+    o.connect(g).connect(this.mus);
+    const send = ctx.createGain();
+    send.gain.value = 0.55;
+    g.connect(send).connect(this.rev);
+    o.start(t);
+    lfo.start(t);
+    o.stop(t + len + 0.25);
+    lfo.stop(t + len + 0.25);
+    m.lastWhistle = f;
+    m.lastWhistleT = t + len;
+  }
+
+  shaker(t, peak) {
+    this.burst(t, 7500, 0.9, 0.004, 0.05, peak, 'highpass');
+  }
+
+  kick(t, peak) {
+    this.tone('sine', 130, 42, t, 0.002, 0.22, peak, this.mus);
+  }
 }
+
+// ---- the tunes: chords a bar each, notes as [step, midi, length in steps]
+
+const ORDER = ['title', 'gold', 'ember', 'rose', 'dusk', 'night'];
+const CHORDS = {
+  D: [50, 57, 62, 66],
+  A: [45, 52, 57, 61],
+  Bm: [47, 54, 59, 62],
+  G: [43, 50, 55, 59],
+  Em: [40, 47, 52, 55],
+};
+// which chord tone each eighth plays (-1 rests)
+const ARP = [
+  [0, 2, 1, 3, 2, 1, 3, 2],
+  [1, 2, 3, 2, 1, 3, 2, -1],
+  [0, 1, 2, 3, 3, 2, 1, 2],
+];
+const SONGS = [
+  {
+    chords: ['D', 'A', 'Bm', 'G', 'D', 'A', 'G', 'A'],
+    notes: [
+      [0, 78, 2], [2, 81, 2], [4, 83, 1], [5, 81, 1], [6, 78, 2],
+      [8, 76, 3], [12, 76, 1], [13, 78, 1], [14, 76, 2],
+      [16, 74, 2], [18, 78, 2], [20, 83, 2], [22, 81, 2],
+      [24, 83, 6], [30, 81, 1], [31, 83, 1],
+      [32, 81, 2], [34, 78, 2], [36, 81, 1], [37, 83, 1], [38, 86, 2],
+      [40, 88, 2], [42, 86, 2], [44, 83, 2], [46, 81, 2],
+      [48, 83, 2], [50, 81, 2], [52, 78, 2], [54, 76, 2],
+      [56, 76, 4], [62, 74, 2],
+    ],
+  },
+  {
+    chords: ['Bm', 'G', 'D', 'A', 'Bm', 'G', 'Em', 'A'],
+    notes: [
+      [0, 83, 3], [3, 86, 2], [5, 83, 1], [6, 81, 2],
+      [8, 83, 4], [12, 81, 2], [14, 78, 2],
+      [16, 81, 2], [18, 78, 2], [20, 74, 2], [22, 78, 1], [23, 81, 1],
+      [24, 76, 6],
+      [32, 78, 2], [34, 81, 2], [36, 83, 2], [38, 86, 2],
+      [40, 88, 2], [42, 86, 2], [44, 83, 4],
+      [48, 79, 2], [50, 83, 2], [52, 86, 4],
+      [56, 85, 4], [60, 81, 4],
+    ],
+  },
+];
+const LULLABY = {
+  chords: ['D', 'Bm', 'G', 'A', 'D', 'Bm', 'G', 'D'],
+  notes: [
+    [0, 86, 2], [2, 81, 2], [4, 83, 2], [6, 78, 2],
+    [8, 81, 2], [10, 76, 2], [12, 78, 4],
+    [16, 79, 2], [18, 83, 2], [20, 81, 2], [22, 78, 2],
+    [24, 76, 4], [28, 78, 2], [30, 76, 2],
+    [32, 86, 2], [34, 81, 2], [36, 83, 2], [38, 86, 2],
+    [40, 88, 2], [42, 86, 2], [44, 83, 4],
+    [48, 83, 2], [50, 81, 2], [52, 79, 2], [54, 76, 2],
+    [56, 74, 8],
+  ],
+};
