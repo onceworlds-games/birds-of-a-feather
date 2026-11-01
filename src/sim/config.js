@@ -188,6 +188,7 @@ export const PALETTE = {
   teal: '#1E5866',
   terracotta: '#C0563A',
   ash: '#8D8794',
+  hawk: '#5E3424',
 };
 
 export const JOIN = { maxPlayers: 12 };

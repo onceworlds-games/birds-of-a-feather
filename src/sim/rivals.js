@@ -289,6 +289,14 @@ export function rivalInput(sky, f, rng) {
     think(sky, f, rng);
     point = goalPoint(sky, f, b.goal, gp) ?? { x: sky.map.center.x, y: L.y, z: sky.map.center.z };
   }
+  // a storm front: get out east of it (a sharper rival sees it coming sooner)
+  const front = sky.storm ? sky.stormFront() : null;
+  if (front !== null && L.x < front + 10 + (S.aware - 40) * 0.6) {
+    gp.x = L.x + 60;
+    gp.y = L.y;
+    gp.z = L.z + (L.z > sky.map.center.z ? -20 : 20);
+    point = gp;
+  }
   b.noise += (b.noiseTarget - b.noise) * 0.1;
   const want = Math.atan2(point.z - L.z, point.x - L.x);
   let diff = angleDiff(L.yaw, want) + b.noise;

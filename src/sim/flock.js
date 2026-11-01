@@ -21,12 +21,16 @@ export class Trail {
     this.head = 0;
   }
 
-  /** Add a point (time must not go back; a point within half a sample of the newest replaces it). */
+  /**
+   * Add a point (time must not go back). Kept points are at least a sample apart: the newest follows the leader until it is a
+   * sample past the point before it, and the next push after that starts a new newest. Any push rate keeps trailSeconds.
+   */
   push(t, x, y, z) {
     if (this.n > 0) {
       const lt = this.t[this.head];
       if (t < lt) return;
-      if (t - lt < 0.5 / FLOCK.trailHz) {
+      const settled = this.n > 1 ? lt - this.t[(this.head - 1 + this.cap) % this.cap] >= 1 / FLOCK.trailHz : t - lt >= 1e-6;
+      if (!settled || t - lt < 1e-6) {
         this.t[this.head] = t;
         this.x[this.head] = x;
         this.y[this.head] = y;
