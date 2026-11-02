@@ -1,14 +1,17 @@
 // A place, built into a handful of merged meshes: the painted ground, the sea with its shallows and surf, the town (walls,
 // roofs, windows that light at dusk), trees that sway, props, poles and wires, thermals; and the things that move: boats
-// at their moorings, windmill sails, the lighthouse beam, chimney smoke. Everything lit by the sunset's light.
+// at their moorings, windmill sails, the lighthouse beam, chimney smoke, the canyon's train and its steam, dust devils
+// wandering the flats, a wind pump's wheel. Everything lit by the sunset's light.
 
 import * as THREE from 'three';
 import { HALF, N, RES } from '../sim/maps.js';
 import { Builder, SURF, worldMaterial, worldUniforms } from './worldmat.js';
 import { buildTown } from './town.js';
 import { buildTrees } from './nature.js';
-import { buildProps, boatGeometry, sailGeometry } from './props.js';
+import { buildProps, boatGeometry, sailGeometry, fanGeometry } from './props.js';
 import { buildGround, depthTexture } from './ground.js';
+import { trainGeometry, timetable } from './train.js';
+import { groundAt } from '../sim/maps.js';
 
 // ------------------------------------------------------------------ the sea
 
@@ -134,6 +137,57 @@ void main() {
   float a = smoothstep(0.48, 0.12, d) * vA * 0.32;
   vec3 col = mix(shade, tint, clamp(0.55 - q.y * 1.2 + n * 0.3, 0.0, 1.0));
   gl_FragColor = vec4(mix(col * 0.82, col, vT), a);
+}`;
+
+// steam: puffs left where the engine let them go, rising and spreading
+const steamVert = /* glsl */ `
+attribute vec3 origin;
+attribute float born;
+uniform float time;
+uniform float scale;
+uniform vec2 wind;
+varying float vA;
+varying float vT;
+varying float vSeed;
+void main() {
+  float age = time - born;
+  float t = clamp(age / 4.5, 0.0, 1.0);
+  vec3 p = origin + vec3(wind.x * age * 1.4, 3.2 * (1.0 - exp(-age * 1.4)) + age * 0.6, wind.y * age * 1.4);
+  p.x += sin(age * 1.7 + born * 9.0) * 0.5 * t;
+  vec4 mv = viewMatrix * vec4(p, 1.0);
+  gl_Position = projectionMatrix * mv;
+  gl_PointSize = mix(1.6, 7.0, sqrt(t)) * scale / -mv.z;
+  vA = (age < 0.0 || age > 4.5) ? 0.0 : smoothstep(0.0, 0.15, t) * (1.0 - t) * 1.6;
+  vT = t;
+  vSeed = fract(born * 3.71);
+}`;
+
+// dust devils: grains spiralling up a leaning funnel, a skirt of dust whirling at its foot
+const devilVert = /* glsl */ `
+attribute vec4 pdat; // which devil, height share, angle, jitter
+uniform vec4 devils[3]; // centre on the ground, strength
+uniform float time;
+uniform float scale;
+varying float vA;
+varying float vT;
+varying float vSeed;
+void main() {
+  int i = int(pdat.x + 0.5);
+  vec4 d = i == 0 ? devils[0] : i == 1 ? devils[1] : devils[2];
+  float skirt = step(0.82, pdat.w);
+  float h = fract(pdat.y + time * (0.07 + 0.05 * pdat.w));
+  float H = mix(24.0, 3.0, skirt);
+  float r = mix(mix(0.7, 5.5, pow(h, 1.5)), mix(2.5, 7.5, h), skirt) * (0.75 + 0.5 * pdat.w);
+  float a = pdat.z + time * mix(4.2 - h * 2.0, 2.0, skirt);
+  vec3 p = d.xyz + vec3(cos(a) * r, h * H, sin(a) * r);
+  p.x += sin(time * 0.7 + float(i) * 2.0 + h * 2.5) * h * 3.0;
+  p.z += cos(time * 0.55 + float(i) * 1.7 + h * 2.0) * h * 2.2;
+  vec4 mv = viewMatrix * vec4(p, 1.0);
+  gl_Position = projectionMatrix * mv;
+  gl_PointSize = mix(1.1, 3.0, h) * mix(1.0, 1.7, skirt) * scale / -mv.z;
+  vA = d.w * smoothstep(0.0, 0.1, h) * (1.0 - smoothstep(0.5, 1.0, h)) * mix(0.5, 0.3, skirt);
+  vT = 0.5 + 0.5 * h;
+  vSeed = fract(pdat.z * 1.37 + pdat.w);
 }`;
 
 // ------------------------------------------------------------------ the lighthouse beam
@@ -328,6 +382,69 @@ export function buildWorld(map, quality = 'medium') {
     }
   }
 
+  // the wind pump's wheel
+  const fans = [];
+  if (moving.fans.length) {
+    const g = fanGeometry();
+    for (const p of moving.fans) {
+      const m = new THREE.Mesh(g, mat);
+      m.position.set(p.x, p.y, p.z);
+      m.rotation.order = 'YXZ';
+      m.rotation.y = -p.yaw;
+      m.castShadow = shadows;
+      group.add(m);
+      fans.push(m);
+    }
+  }
+
+  // the train, and the steam it leaves behind
+  let train = null;
+  const steamUniforms = { time: { value: 0 }, scale: { value: 600 }, wind: { value: new THREE.Vector2(0.85, 0.35) }, tint: { value: new THREE.Color('#F4F0EA') }, shade: { value: new THREE.Color('#8A8090') } };
+  if (map.rail) {
+    const { geometry, length, chimney } = trainGeometry();
+    const m = new THREE.Mesh(geometry, mat);
+    m.castShadow = shadows;
+    m.receiveShadow = true;
+    m.position.set(0, map.rail.y + 0.27, map.rail.z);
+    m.visible = false;
+    group.add(m);
+    const PUFFS = 72;
+    const origin = new Float32Array(PUFFS * 3);
+    const born = new Float32Array(PUFFS).fill(-99);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(origin, 3));
+    g.setAttribute('origin', new THREE.BufferAttribute(origin, 3));
+    g.setAttribute('born', new THREE.BufferAttribute(born, 1));
+    const pts = new THREE.Points(g, new THREE.ShaderMaterial({ uniforms: steamUniforms, vertexShader: steamVert, fragmentShader: smokeFrag, transparent: true, depthWrite: false }));
+    pts.frustumCulled = false;
+    pts.renderOrder = 4;
+    group.add(pts);
+    train = { m, length, chimney, at: timetable(map.rail, length), state: {}, g, origin, born, next: 0, emit: 0 };
+  }
+
+  // dust devils over the flats
+  const devilUniforms = { devils: { value: [new THREE.Vector4(), new THREE.Vector4(), new THREE.Vector4()] }, time: { value: 0 }, scale: { value: 600 }, tint: { value: new THREE.Color('#E8C49A') }, shade: { value: new THREE.Color('#A0704E') } };
+  if (map.devils) {
+    const per = quality === 'low' ? 90 : 200;
+    const n = per * map.devils.length;
+    const pdat = new Float32Array(n * 4);
+    let seed = 1;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    for (let k = 0; k < n; k++) {
+      pdat[k * 4] = Math.floor(k / per);
+      pdat[k * 4 + 1] = rnd();
+      pdat[k * 4 + 2] = rnd() * Math.PI * 2;
+      pdat[k * 4 + 3] = rnd();
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+    g.setAttribute('pdat', new THREE.BufferAttribute(pdat, 4));
+    const pts = new THREE.Points(g, new THREE.ShaderMaterial({ uniforms: devilUniforms, vertexShader: devilVert, fragmentShader: smokeFrag, transparent: true, depthWrite: false }));
+    pts.frustumCulled = false;
+    pts.renderOrder = 4;
+    group.add(pts);
+  }
+
   // the lighthouse beam at dusk
   const beamUniforms = { strength: { value: 0 } };
   const beams = [];
@@ -424,6 +541,7 @@ export function buildWorld(map, quality = 'medium') {
   }
 
   const white = new THREE.Color('#FFFFFF');
+  const DUST = new THREE.Color('#F0DCB8');
   const cloudWind = new THREE.Vector2(0.006, 0.0025);
   return {
     group,
@@ -453,6 +571,51 @@ export function buildWorld(map, quality = 'medium') {
         b.m.rotation.z = Math.sin(time * 0.7 + b.phase) * 0.025;
       }
       for (const s of sails) s.rotation.x += dt * 0.6;
+      for (const f of fans) f.rotation.x += dt * 2.6;
+      if (train) {
+        const st = train.at(time, train.state);
+        const back = st.x - st.dir * train.length;
+        const lo = Math.min(st.x, back);
+        const hi = Math.max(st.x, back);
+        train.m.visible = !st.hidden && hi > map.rail.x0 - 1 && lo < map.rail.x1 + 1;
+        train.m.position.x = st.x;
+        train.m.rotation.y = st.dir > 0 ? 0 : Math.PI;
+        // steam from the chimney while it's out in the open: quick chuffs on the move, a lazy plume standing at the halt
+        const cxw = st.x + st.dir * train.chimney[0];
+        if (train.m.visible && cxw > map.rail.x0 + 1 && cxw < map.rail.x1 - 1) {
+          train.emit -= dt;
+          if (train.emit <= 0) {
+            train.emit = st.stopped ? 0.45 : 0.32 - 0.2 * st.speed;
+            const k = train.next;
+            train.next = (k + 1) % train.born.length;
+            train.origin[k * 3] = cxw;
+            train.origin[k * 3 + 1] = train.m.position.y + train.chimney[1];
+            train.origin[k * 3 + 2] = map.rail.z;
+            train.born[k] = time;
+            train.g.attributes.origin.needsUpdate = true;
+            train.g.attributes.born.needsUpdate = true;
+          }
+        }
+        steamUniforms.time.value = time;
+        steamUniforms.tint.value.copy(light.sun).lerp(white, 0.65).multiplyScalar(Math.min(1, 0.4 + light.sunI * 0.3));
+        steamUniforms.shade.value.copy(light.hemiSky).multiplyScalar(light.hemiI * 0.6);
+        if (view) steamUniforms.scale.value = (view.height * view.pixelRatio * 0.5) / Math.tan((view.camera.fov * Math.PI) / 360);
+      }
+      if (map.devils) {
+        // they whirl through the warm afternoon and die away as the light goes
+        const day = Math.max(0, 1 - light.glow * 3);
+        map.devils.forEach((d, i) => {
+          const a = d.phase + d.speed * time;
+          const x = d.x + Math.cos(a) * d.rx;
+          const z = d.z + Math.sin(a * 1.3) * d.rz;
+          const life = THREE.MathUtils.smoothstep(Math.sin(time * 0.045 + d.phase * 1.7), -0.35, 0.15);
+          devilUniforms.devils.value[i].set(x, groundAt(map, x, z) - 0.3, z, day * life);
+        });
+        devilUniforms.time.value = time;
+        devilUniforms.tint.value.copy(light.sun).lerp(white, 0.35).multiply(DUST).multiplyScalar(Math.min(1.15, 0.5 + light.sunI * 0.3));
+        devilUniforms.shade.value.copy(devilUniforms.tint.value).multiplyScalar(0.8);
+        if (view) devilUniforms.scale.value = (view.height * view.pixelRatio * 0.5) / Math.tan((view.camera.fov * Math.PI) / 360);
+      }
       beamUniforms.strength.value = Math.max(0, (light.glow - 0.3) / 0.7);
       for (const b of beams) {
         b.visible = beamUniforms.strength.value > 0.01;

@@ -726,8 +726,9 @@ function redrock() {
     sage: '#8F9A6A',
     sand: '#E8C9A0',
     sea: '#25797E',
-    walls: ['#C9A27A', '#B98B62', '#D8B48A'],
+    walls: ['#D9B48A', '#C9A27A', '#E3C49C'],
     roofs: ['#7A4A33', '#6A5A4A', '#8A5A3A'],
+    barn: '#9A4A30',
     fields: [],
   });
   map.hasSea = true;
@@ -735,35 +736,142 @@ function redrock() {
   map.seaDepth = 3.5; // a river: deep a few units in
   const cx = (z) => 40 * Math.sin(z / 90) + 22 * Math.sin(z / 37 + 0.6);
   map.canyonX = cx;
-  const buttes = [];
   const rng = makeRng(`${seed}:build`);
-  for (let k = 0; k < 9; k++) {
-    const z = rng.range(-250, 250);
-    const side = rng.chance(0.5) ? 1 : -1;
-    buttes.push({ x: cx(z) + side * rng.range(70, 200), z, r: rng.range(12, 22), h: rng.range(14, 24) });
+  // the flats: rolling, crossed by long low scarps (steps of rock a few units high) that wander for hundreds of units
+  const base = (x, z) => 34 + 5 * noise.fbm(x / 80, z / 80, 3);
+  const scarps = (x, z) => 3.4 * smoothstep(-0.016, 0.016, noise(x / 150 + 3.1, z / 150 - 1.7)) + 2.6 * smoothstep(-0.02, 0.02, noise(x / 105 - 5.3, z / 105 + 2.9));
+  const plateau = (x, z) => base(x, z) + scarps(x, z) - 3;
+  // the railway runs level along z = RAIL_Z at the trestle's deck: through cuttings, over banks, into a tunnel at each end
+  const RAIL_Z = 40;
+  const railY = Math.round((plateau(cx(RAIL_Z), RAIL_Z) - 3) * 10) / 10;
+  // mesas: flat tops on cliffs over a bench and a skirt of scree, their outlines lobed; one at each end of the line, tunnelled
+  const mesas = [
+    { x: -215, z: -195, r: 40, h: 24 },
+    { x: -275, z: -45, r: 30, h: 20 },
+    { x: -150, z: 152, r: 34, h: 22 },
+    { x: -84, z: 254, r: 28, h: 18 },
+    { x: -296, z: RAIL_Z, r: 36, h: 22, tunnel: true },
+    { x: 232, z: -192, r: 38, h: 24 },
+    { x: 252, z: 142, r: 32, h: 20 },
+    { x: 152, z: 238, r: 28, h: 20 },
+    { x: 258, z: -84, r: 24, h: 18 },
+    { x: 298, z: RAIL_Z, r: 36, h: 22, tunnel: true },
+  ];
+  for (const m of mesas) {
+    m.a = rng.range(0, 6.28);
+    m.b = rng.range(0, 6.28);
+    m.base = plateau(m.x, m.z) - 1;
   }
-  // two buttes inside the gorge
-  buttes.push({ x: cx(-60), z: -60, r: 11, h: 34 });
-  buttes.push({ x: cx(130), z: 130, r: 9, h: 30 });
-  const plateau = (x, z) => 34 + 5 * noise.fbm(x / 80, z / 80, 3);
+  const outline = (m, a, x, z) => m.r * (1 + 0.16 * Math.sin(2 * a + m.a) + 0.09 * Math.sin(3 * a + m.b) + 0.08 * noise(x / 16 + m.a, z / 16 - m.b));
+  // a mesa at a point: q (0 at its middle, 1 at the foot of its cliff) and the ground's height there; null well clear of it
+  const mesaAt = (m, x, z) => {
+    const dx = x - m.x;
+    const dz = z - m.z;
+    const d = Math.hypot(dx, dz);
+    if (d > m.r * 2) return null;
+    const q = d / outline(m, Math.atan2(dz, dx), x, z);
+    const lift = m.h * (0.52 * smoothstep(1.0, 0.9, q) + 0.3 * smoothstep(1.28, 1.15, q) + 0.18 * smoothstep(1.7, 1.32, q));
+    return { q, y: m.base + lift + (q < 0.9 ? 0.6 * noise(x / 9, z / 9) : 0) };
+  };
+  // places kept open: the roost, the view from the title wire, the ranch, the halt
+  const keep = [
+    { x: -125, z: -100, r: 50 },
+    { x: 165, z: -10, r: 46 },
+    { x: 92, z: -138, r: 42 },
+    { x: 165, z: 50, r: 30 },
+  ];
+  const offRail = (z, r) => Math.abs(z - RAIL_Z) > r + 12;
+  const clearOf = (x, z, r, mesaGap = 1.75) =>
+    keep.every((k) => Math.hypot(x - k.x, z - k.z) > k.r + r) &&
+    mesas.every((m) => Math.hypot(x - m.x, z - m.z) > m.r * mesaGap + r) &&
+    offRail(z, r) &&
+    Math.abs(x - cx(z)) > 72 + r;
+  // small buttes out on the flats, and two standing in the gorge
+  const buttes = [];
+  for (let tries = 0; buttes.length < 7 && tries < 600; tries++) {
+    const z = rng.range(-255, 255);
+    const x = cx(z) + (rng.chance(0.5) ? 1 : -1) * rng.range(80, 230);
+    const r = rng.range(9, 15);
+    if (Math.hypot(x, z) > 245 || !clearOf(x, z, r * 1.6 + 6) || buttes.some((b) => Math.hypot(b.x - x, b.z - z) < b.r + r + 50)) continue;
+    buttes.push({ x, z, r, h: rng.range(15, 22) });
+  }
+  buttes.push({ x: cx(-60), z: -60, r: 11, h: 34, gorge: true });
+  buttes.push({ x: cx(130), z: 130, r: 9, h: 30, gorge: true });
+  // dry washes: sandy beds winding off the flats and pouring over the rim into the gorge
+  const washes = [];
+  for (const [x0, z0, ph] of [[-305, -168, 0.3], [-305, 112, 1.9], [-262, 262, 3.1], [305, -224, 4.0], [305, 100, 5.2], [290, 214, 0.9]]) {
+    const dir = Math.sign(cx(z0) - x0);
+    const pts = [[x0, z0]];
+    let x = x0;
+    let z = z0;
+    for (let k = 0; k < 60; k++) {
+      const yaw = (dir > 0 ? 0 : Math.PI) + 0.62 * Math.sin(k * 0.4 + ph) + 0.28 * Math.sin(k * 1.13 + ph * 2);
+      x += Math.cos(yaw) * 9;
+      z += Math.sin(yaw) * 9;
+      if (Math.abs(z - RAIL_Z) < 22) z = RAIL_Z + (z < RAIL_Z ? -22 : 22);
+      pts.push([x, z]);
+      if (Math.abs(x - cx(z)) < 50) break;
+    }
+    washes.push(pts);
+  }
+  const segDist = (pts, x, z) => {
+    let best = Infinity;
+    for (let k = 1; k < pts.length; k++) {
+      const [ax, az] = pts[k - 1];
+      const [bx, bz] = pts[k];
+      const ex = bx - ax;
+      const ez = bz - az;
+      const t = clamp(((x - ax) * ex + (z - az) * ez) / (ex * ex + ez * ez || 1), 0, 1);
+      best = Math.min(best, Math.hypot(x - ax - ex * t, z - az - ez * t));
+    }
+    return best;
+  };
+  for (const w of washes) {
+    w.x0 = Math.min(...w.map((p) => p[0])) - 16;
+    w.x1 = Math.max(...w.map((p) => p[0])) + 16;
+    w.z0 = Math.min(...w.map((p) => p[1])) - 16;
+    w.z1 = Math.max(...w.map((p) => p[1])) + 16;
+  }
+  const washD = (x, z) => {
+    let d = 99;
+    for (const w of washes) if (x > w.x0 && x < w.x1 && z > w.z0 && z < w.z1) d = Math.min(d, segDist(w, x, z));
+    return d + 2 * noise(x / 11, z / 11);
+  };
   fillGround(map, (x, z) => {
     const dx = Math.abs(x - cx(z));
     const wall = smoothstep(20, 66, dx + 7 * noise(x / 45, z / 45));
     let h = lerp(-1.5, plateau(x, z), wall);
-    // terraces: ledges with walls between, the walls wide enough that the grid draws them as slopes, not steps
-    const step = 7;
-    const t = h / step;
-    h = lerp(h, (Math.floor(t) + smoothstep(0.3, 1, t - Math.floor(t))) * step, 0.75);
+    // the gorge walls in terraces: ledges with walls between, wide enough that the grid draws them as slopes, not steps
+    if (wall < 0.995) {
+      const t = h / 7;
+      const stepped = (Math.floor(t) + smoothstep(0.3, 1, t - Math.floor(t))) * 7;
+      h = lerp(h, stepped, 0.75 * (1 - smoothstep(0.9, 0.995, wall)));
+    }
+    // washes cut the flats, deepest where they pour off the rim
+    if (wall > 0.6) {
+      const d = washD(x, z);
+      if (d < 12) h -= (2.3 * smoothstep(5.5, 1.5, d) + 0.9 * smoothstep(12, 5.5, d)) * wall;
+    }
     for (const b of buttes) {
       const d = Math.hypot(x - b.x, z - b.z);
-      const inGorge = Math.abs(b.x - cx(b.z)) < 30;
-      const baseH = inGorge ? 0 : h;
-      const lift = smoothstep(b.r + 6, b.r, d) * b.h;
-      h = Math.max(h, baseH + lift);
+      h = Math.max(h, (b.gorge ? 0 : h) + smoothstep(b.r + 6, b.r, d) * b.h);
+    }
+    let inTunnel = false;
+    for (const m of mesas) {
+      const at = mesaAt(m, x, z);
+      if (!at) continue;
+      h = Math.max(h, at.y);
+      if (m.tunnel && at.q < 1.0) inTunnel = true;
+    }
+    // the railbed: level, cut down through rises and banked over dips; over the gorge the trestle spans it
+    const rz = Math.abs(z - RAIL_Z);
+    const bed = railY - 0.25;
+    if (rz < 14 && !inTunnel && (dx > 75 || h > bed)) {
+      h = lerp(bed, h, h > bed ? smoothstep(3.4, 11, rz) : smoothstep(3.4, 8, rz));
     }
     return h;
   });
-  // the ranch on the east rim
+  // the ranch on the east rim: houses, a barn, corrals, a wind pump over a stock tank, hay
   const rx = cx(-150) + 95;
   for (let k = 0; k < 6; k++) {
     const x = rx + (k % 3) * 14 + rng.range(-2, 2);
@@ -773,48 +881,193 @@ function redrock() {
     else edgePerches(map, b);
     map.lamps.push([b.x, b.y + b.h * 0.55, b.z + b.d / 2 + 0.05, 0, 1.2, 1.4]);
   }
-  // the railway trestle across the gorge, and its line of poles
   {
-    const z = 40;
-    const x0 = cx(z) - 75;
-    const x1 = cx(z) + 75;
-    const y = plateau(cx(z), z) - 2;
-    const b = addBuilding(map, { kind: 'trestle', x: (x0 + x1) / 2, z, w: x1 - x0, d: 5, h: y - 0.4, yaw: 0, roof: 'flat', wall: 1, roofColor: 1 });
+    const barn = addBuilding(map, { kind: 'house', barn: true, x: rx + 50, z: -160, w: 12, d: 16, h: 6, yaw: 0.05, roof: 'gable', roofH: 4.5, wall: 0, roofColor: 1 });
+    ridgePerches(map, barn);
+    const at = (x, z) => groundAt(map, x, z);
+    map.props.push({ kind: 'corral', x: rx + 22, z: -116, y: at(rx + 22, -116), w: 24, d: 14, yaw: 0.05, cattle: 5 });
+    map.props.push({ kind: 'corral', x: rx + 52, z: -134, y: at(rx + 52, -134), w: 13, d: 13, yaw: 0.05, cattle: 2 });
+    const wy = at(rx + 40, -122);
+    map.props.push({ kind: 'windpump', x: rx + 40, z: -122, y: wy, yaw: 0.7, top: wy + 12.5, r: 2.4 });
+    map.props.push({ kind: 'trough', x: rx + 40, z: -117.5, y: at(rx + 40, -117.5) });
+    for (let k = 0; k < 7; k++) {
+      const hx = rx + 62 + rng.range(-1, 3);
+      const hz = -168 + k * 2.9;
+      map.props.push({ kind: 'hay', x: hx, z: hz, y: at(hx, hz) });
+    }
+  }
+  // the railway: a trestle over the gorge at the line's level, track across the flats, a stone portal at each tunnel
+  const tunnels = mesas.filter((m) => m.tunnel);
+  const portalX = (m, dir) => {
+    // the first grid line out from the mesa where the bed is cut (its face stands just inside it)
+    let x = m.x;
+    while (mesaAt(m, x, RAIL_Z) && mesaAt(m, x, RAIL_Z).q < 1.0) x += dir * RES;
+    return -HALF + Math.round((x + HALF) / RES) * RES;
+  };
+  map.rail = { z: RAIL_Z, y: railY, x0: portalX(tunnels[0], 1), x1: portalX(tunnels[1], -1), halt: 172 };
+  map.props.push({ kind: 'portal', x: map.rail.x0, z: RAIL_Z, y: railY, dir: 1 });
+  map.props.push({ kind: 'portal', x: map.rail.x1, z: RAIL_Z, y: railY, dir: -1 });
+  {
+    const x0 = cx(RAIL_Z) - 75;
+    const x1 = cx(RAIL_Z) + 75;
+    const b = addBuilding(map, { kind: 'trestle', x: (x0 + x1) / 2, z: RAIL_Z, w: x1 - x0, d: 5, h: 10, yaw: 0, roof: 'flat', wall: 1, roofColor: 1 });
+    b.h = railY - b.y;
+    b.top = railY + b.roofH;
     edgePerches(map, b);
+    map.props.push({ kind: 'track', x0: map.rail.x0, x1: x0 + 0.5, z: RAIL_Z, y: railY });
+    map.props.push({ kind: 'track', x0: x1 - 0.5, x1: map.rail.x1, z: RAIL_Z, y: railY });
     let last = null;
     for (let x = x0 - 130; x <= x1 + 130; x += 26) {
       const onTrestle = x > x0 && x < x1;
-      const p = onTrestle ? { x, z: z + 3.5, y: b.top - 0.2, h: 6 } : addPole(map, x, z + 3.5, 8);
+      const p = onTrestle ? { x, z: RAIL_Z + 3.5, y: b.top - 0.2, h: 6 } : addPole(map, x, RAIL_Z - 4.5, 8);
       if (onTrestle) map.poles.push(p);
       if (last) addSpan(map, last, p, 2);
       last = p;
     }
   }
+  {
+    // the halt: a platform, the station house, a water tank on legs (a landmark), a signal
+    const hx = 160;
+    map.props.push({ kind: 'platform', x: hx, z: RAIL_Z + 4.4, y: railY, w: 34, d: 4.2 });
+    const st = addBuilding(map, { kind: 'house', x: hx - 4, z: RAIL_Z + 10.4, w: 13, d: 7, h: 4.6, yaw: 0, roof: 'gable', roofH: 2.6, wall: 2, roofColor: 0 });
+    ridgePerches(map, st);
+    map.lamps.push([st.x - 3, st.y + 2.4, st.z - st.d / 2 - 0.05, Math.PI, 1.2, 1.4]);
+    map.lamps.push([st.x + 3, st.y + 2.4, st.z - st.d / 2 - 0.05, Math.PI, 1.2, 1.4]);
+    const tx = hx + 24;
+    const tz = RAIL_Z + 6.5;
+    const ty = groundAt(map, tx, tz);
+    map.props.push({ kind: 'watertower', x: tx, z: tz, y: ty, top: ty + 7.6, r: 2.6 });
+    ringPerches(map, tx, ty + 7.75, tz, 1.7, 8, 'special');
+    map.props.push({ kind: 'signal', x: hx - 26, z: RAIL_Z + 3.2, y: groundAt(map, hx - 26, RAIL_Z + 3.2) });
+    // a dirt road from the halt down to the ranch, with its wires
+    const road = [];
+    let last = null;
+    for (let k = 0; k <= 14; k++) {
+      const s = k / 14;
+      const x = lerp(hx - 18, rx + 24, s) + 16 * Math.sin(s * Math.PI * 1.3);
+      const z = lerp(RAIL_Z + 18, -126, s);
+      road.push([x, z]);
+      if (k % 2 === 1) {
+        const p = addPole(map, x + 4.5, z, 7.5);
+        if (last) addSpan(map, last, p, 1);
+        last = p;
+      }
+    }
+    map.streets.push(road);
+  }
   // a road along the west rim with its wires
   {
+    const road = [];
     let last = null;
     for (let z = -270; z <= 270; z += 25) {
       const x = cx(z) - 80 + 10 * Math.sin(z / 60);
+      road.push([x - 5, z]);
+      if (Math.abs(z - RAIL_Z) < 12) continue;
       const p = addPole(map, x, z, 8);
       if (last) addSpan(map, last, p, 2);
       last = p;
     }
+    map.streets.push(road);
   }
+  // landmarks: a cairn and a ring of perches on each butte; birds along each mesa's rim, and a cairn on it
   for (const b of buttes) {
     const y = groundAt(map, b.x, b.z);
     ringPerches(map, b.x, y + 0.2, b.z, b.r * 0.6, 14, 'special');
     map.props.push({ kind: 'mark', x: b.x, z: b.z, y, top: y + 1, r: b.r });
   }
-  for (let k = 0; k < 360; k++) {
+  for (const m of mesas) {
+    if (m.tunnel) continue;
+    const pts = [];
+    for (let k = 0; k < 20; k++) {
+      const a = (k / 20) * Math.PI * 2;
+      const r = outline(m, a, m.x + Math.cos(a) * m.r, m.z + Math.sin(a) * m.r) * 0.8;
+      const x = m.x + Math.cos(a) * r;
+      const z = m.z + Math.sin(a) * r;
+      pts.push([x, groundAt(map, x, z) + 0.2, z, a]);
+    }
+    map.groupsRaw.push({ kind: 'special', pts });
+    map.props.push({ kind: 'mark', x: pts[0][0], z: pts[0][2], y: pts[0][1] - 0.2, top: pts[0][1] + 0.8, r: 2 });
+  }
+  // hoodoos: clusters of slender spires under cap rocks, some under the mesas, some out on the flats
+  const hoodooAt = (x, z) => {
+    const y = groundAt(map, x, z);
+    const h = rng.range(5, 14);
+    const r = rng.range(1.1, 2.1);
+    map.props.push({ kind: 'hoodoo', x, z, y, h, w: r, r: r + 0.8, top: y + h + 1, seed: rng.next() });
+  };
+  const clusters = [];
+  for (let tries = 0; clusters.length < 11 && tries < 800; tries++) {
+    let x;
+    let z;
+    if (clusters.length < 6) {
+      const m = rng.pick(mesas.filter((mm) => !mm.tunnel));
+      const a = rng.range(0, Math.PI * 2);
+      x = m.x + Math.cos(a) * m.r * rng.range(2.0, 2.4);
+      z = m.z + Math.sin(a) * m.r * rng.range(2.0, 2.4);
+    } else {
+      z = rng.range(-250, 250);
+      x = cx(z) + (rng.chance(0.5) ? 1 : -1) * rng.range(90, 230);
+    }
+    if (Math.hypot(x, z) > 265 || !clearOf(x, z, 12) || buttes.some((b) => Math.hypot(b.x - x, b.z - z) < b.r + 22) || clusters.some((c) => Math.hypot(c.x - x, c.z - z) < 50)) continue;
+    clusters.push({ x, z });
+    const n = rng.int(4, 8);
+    for (let k = 0; k < n; k++) hoodooAt(x + rng.range(-11, 11), z + rng.range(-11, 11));
+  }
+  // boulders fallen from the cliffs, round each mesa's foot
+  for (const m of mesas) {
+    for (let k = 0; k < 10; k++) {
+      const a = rng.range(0, Math.PI * 2);
+      const r = outline(m, a, m.x, m.z) * rng.range(1.25, 1.8);
+      const x = m.x + Math.cos(a) * r;
+      const z = m.z + Math.sin(a) * r;
+      if (!offRail(z, -4) || Math.hypot(x, z) > 300) continue;
+      const br = rng.range(1.0, 2.6);
+      const y = groundAt(map, x, z);
+      map.props.push({ kind: 'boulder', x, z, y, s: br, r: br, top: y + br * 1.1, seed: rng.next() });
+    }
+  }
+  // junipers on the flats, thicker under the cliffs; cottonwoods along the washes and the river; a few dead snags
+  const blocked = (x, z, r) => map.buildings.some((b) => Math.hypot(b.x - x, b.z - z) < Math.max(b.w, b.d) / 2 + r + 1) || map.props.some((p) => p.top && Math.hypot(p.x - x, p.z - z) < (p.r ?? 2) + r);
+  for (let k = 0; k < 900; k++) {
     const x = rng.range(-290, 290);
     const z = rng.range(-290, 290);
     const dx = Math.abs(x - cx(z));
     const river = dx < 20;
-    if (!river && dx < 60) continue;
-    if (river && rng.next() > 0.5) continue;
-    const t = addTree(map, x, z, river ? rng.range(6, 9) : rng.range(2.5, 4.5), river ? rng.range(2.4, 3.4) : rng.range(1.4, 2.2), river ? 'round' : 'juniper');
+    if (!river && dx < 66) continue;
+    if (!river && Math.abs(z - RAIL_Z) < 10) continue;
+    if (river) {
+      // on the banks, not in the water
+      if (rng.next() > 0.6 || groundAt(map, x, z) < map.water + 0.5) continue;
+      const t = addTree(map, x, z, rng.range(6, 9), rng.range(2.4, 3.4), 'cottonwood');
+      if (k % 2 === 0) ringPerches(map, x, t.y + t.h * 0.9, z, t.r * 0.55, 4, 'tree');
+      continue;
+    }
+    if (slopeOver(map, x, z, 2) > 2.4) continue;
+    const wd = washD(x, z);
+    let nearMesa = false;
+    for (const m of mesas) if (Math.hypot(x - m.x, z - m.z) < m.r * 2.1) nearMesa = true;
+    // scrub thickens along the washes and under the cliffs, and thins out on the open flats
+    if (rng.next() > (wd < 9 ? 1 : nearMesa ? 0.8 : 0.42)) continue;
+    if (blocked(x, z, 2)) continue;
+    if (wd < 8 && rng.next() < 0.5) {
+      const t = addTree(map, x, z, rng.range(6, 8.5), rng.range(2.2, 3.2), 'cottonwood');
+      if (k % 3 === 0) ringPerches(map, x, t.y + t.h * 0.9, z, t.r * 0.55, 4, 'tree');
+      continue;
+    }
+    if (rng.next() < 0.07) {
+      const t = addTree(map, x, z, rng.range(4.5, 6.5), 1.6, 'snag');
+      ringPerches(map, x, t.y + t.h * 0.82, z, 1.0, 4, 'tree');
+      continue;
+    }
+    const t = addTree(map, x, z, rng.range(2.5, 4.8), rng.range(1.4, 2.4), 'juniper');
     if (k % 2 === 0) ringPerches(map, x, t.y + t.h * 0.9, z, t.r * 0.55, 4, 'tree');
   }
+  // dust devils wander the flats through the afternoon
+  map.devils = [
+    { x: -195, z: -60, rx: 55, rz: 40, speed: 0.021, phase: 0 },
+    { x: 190, z: -150, rx: 45, rz: 35, speed: -0.017, phase: 2.1 },
+    { x: 190, z: 165, rx: 45, rz: 40, speed: 0.019, phase: 4.2 },
+  ];
   // twelve rim thermals, alternating sides down the gorge
   for (let k = 0; k < 12; k++) {
     const z = -255 + k * 46;
@@ -841,6 +1094,8 @@ function redrock() {
     map.title = { wire, camera: [183, wire.ay - wire.sag + 2.2, -8], look: [-150, 10, 20], spawn: { x: 170, z: -8, yaw: Math.PI } };
   }
   roost(map, cx(-100) - 70, -100, 52, Math.PI / 2, [34, 0, 0]);
+  // kept for the tint
+  map.redrock = { washD, mesas, rail: map.rail, cx };
   return finish(map, 1500, seed);
 }
 
@@ -1141,25 +1396,44 @@ function tintSaltmere(map) {
 }
 
 function tintRedrock(map) {
-  const L = map.look;
-  const rock = hex(L.rock);
-  const light = hex(L.rockLight);
-  const ochre = hex(L.ochre);
-  const sand = hex(L.sand);
-  const dirt = hex('#C0683C');
-  const pale = hex('#E9C58E');
+  const { washD, mesas, rail, cx } = map.redrock;
+  delete map.redrock;
+  const buff = hex('#E4C49A');
+  const pink = hex('#D9A37E');
+  const red = hex('#C0683C');
+  const rust = hex('#A9532F');
+  const sage = hex('#A9A47C');
+  const caliche = hex('#ECDDBF');
+  const varnish = hex('#8E4A30');
+  const gravel = hex('#DCD0B6');
+  const ballast = hex('#857466');
+  const sand = hex(map.look.sand);
   const bank = hex('#8C9A5E');
+  const cream = hex('#EBCB9E');
   const noise = makeNoise2('redrock:tint');
   fillTint(map, (x, z, h, slope) => {
-    // walls: bands of red and pale rock by height
-    const band = 0.5 + 0.5 * Math.sin(h * 0.9 + noise(x / 40, z / 40) * 2);
-    const wall = mix(rock, light, band);
-    // flats: pale sand and ochre, with patches of red dirt
-    const patch = smoothstep(-0.15, 0.35, noise.fbm(x / 55, z / 55, 3));
-    let flat = mix(mix(pale, ochre, 0.45 + 0.35 * noise(x / 18, z / 18)), dirt, patch * 0.7);
+    // cliffs and walls: red rock, rustier in places, paler high up, streaked dark where water ran down (the shader lays
+    // the beds over it)
+    let wall = mix(red, rust, smoothstep(-0.3, 0.45, noise(x / 30, z / 30)));
+    wall = mix(wall, cream, smoothstep(40, 55, h) * 0.35);
+    wall = mix(wall, varnish, smoothstep(0.35, 0.75, noise(x / 6 + h * 0.05, z / 6)) * 0.4);
+    // the flats: buff and pink earth, patches of red dirt, sage where the scrub is thick, pale caliche flats
+    let flat = mix(buff, pink, smoothstep(-0.4, 0.5, noise.fbm(x / 70, z / 70, 3)));
+    flat = mix(flat, red, smoothstep(0.1, 0.5, noise.fbm(x / 45 + 7, z / 45 - 3, 3)) * 0.55);
+    flat = mix(flat, caliche, smoothstep(0.35, 0.65, noise(x / 90 - 4, z / 90 + 9)) * 0.5);
+    const wd = washD(x, z);
+    let nearMesa = 0;
+    for (const m of mesas) nearMesa = Math.max(nearMesa, smoothstep(m.r * 2.3, m.r * 1.4, Math.hypot(x - m.x, z - m.z)));
+    flat = mix(flat, sage, Math.max(smoothstep(14, 6, wd) * 0.55, nearMesa * 0.25, smoothstep(0.2, 0.6, noise(x / 30 + 2, z / 30)) * 0.3));
+    // a wash's bed: pale gravel with a darker damp line down its middle
+    flat = mix(flat, gravel, smoothstep(4.5, 2, wd) * 0.85);
+    flat = mix(flat, shade(gravel, 0.82), smoothstep(1.2, 0.3, wd) * 0.5);
+    // the railbed's ballast, off the trestle
+    if (Math.abs(x - cx(z)) > 74 && x > rail.x0 - 2 && x < rail.x1 + 2) flat = mix(flat, ballast, smoothstep(2.6, 1.8, Math.abs(z - rail.z)) * 0.9);
+    // by the river: sand, then green banks
     if (h < 3.2) flat = mix(sand, bank, smoothstep(3.2, 1.6, h) * 0.75);
     const c = mix(wall, flat, smoothstep(0.62, 0.3, slope));
-    return shade(c, 0.92 + 0.12 * noise(x / 7, z / 7));
+    return shade(c, 0.93 + 0.12 * noise(x / 7, z / 7));
   });
 }
 

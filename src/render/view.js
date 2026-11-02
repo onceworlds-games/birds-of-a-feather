@@ -175,7 +175,7 @@ export class View {
     if (this.quality !== 'low') {
       this.composer = new EffectComposer(r);
       this.composer.addPass(new RenderPass(this.scene, this.camera));
-      this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.35, 0.45, 0.88);
+      this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.35, 0.4, 0.92);
       this.composer.addPass(this.bloom);
       this.composer.addPass(new OutputPass());
       this.grade = new ShaderPass(Grade);
@@ -231,7 +231,7 @@ export class View {
     this.sun.position.set(focus.x + d.x * 180, focus.y + Math.max(0.14, d.y) * 180, focus.z + d.z * 180);
     this.sun.target.position.copy(focus);
     this.dome.position.copy(this.camera.position);
-    if (this.bloom) this.bloom.strength = 0.22 + L.glow * 0.38;
+    if (this.bloom) this.bloom.strength = 0.2 + L.glow * 0.2;
     // open up a little as the light goes, so the last minute stays bright enough to play
     this.renderer.toneMappingExposure = 0.92 + L.glow * 0.18;
     if (this.grade) this.grade.uniforms.warm.value.copy(L.haze).lerp(L.zenith, 0.4 + 0.5 * u.night.value);

@@ -558,6 +558,27 @@ function updateCamera(dt, sky) {
     cam.pos.lerp(cam.wantPos, 1 - Math.exp(-dt * rate));
     cam.look.lerp(cam.wantLook, 1 - Math.exp(-dt * lookRate));
   }
+  if (S.camHold) {
+    // a held shot (autoplay only): fixed, or riding along beside the flock
+    const h = S.camHold;
+    const zero = { x: 0, y: 0, z: 0 };
+    const o = h.follow && me.L ? me.L : zero; // what it looks at: offset from the flock when following
+    const po = h.follow && h.follow !== 'look' && me.L ? me.L : zero; // 'look': the camera stays put and turns to watch the flock go by
+    // 'rel': offsets are [ahead, up, to the right] of the flock's heading (smoothed)
+    if (h.follow === 'rel' && me.L) {
+      if (h.yaw === undefined) h.yaw = me.L.yaw;
+      h.yaw += Math.atan2(Math.sin(me.L.yaw - h.yaw), Math.cos(me.L.yaw - h.yaw)) * (1 - Math.exp(-dt * 1.5));
+    }
+    const off = (v) => (h.follow === 'rel' && h.yaw !== undefined ? [v[0] * Math.cos(h.yaw) - v[2] * Math.sin(h.yaw), v[1], v[0] * Math.sin(h.yaw) + v[2] * Math.cos(h.yaw)] : v);
+    const p0 = off(h.pos);
+    const l0 = off(h.look);
+    tmpV.set(po.x + p0[0], po.y + p0[1], po.z + p0[2]);
+    const k = h.follow && !h.snap ? 1 - Math.exp(-dt * 5) : 1;
+    cam.pos.lerp(tmpV, k);
+    tmpV.set(o.x + l0[0], o.y + l0[1], o.z + l0[2]);
+    cam.look.lerp(tmpV, k);
+    h.snap = false;
+  }
   // never into the ground
   const floor = surfaceAt(map, cam.pos.x, cam.pos.z) + 2;
   if (cam.pos.y < floor) cam.pos.y = floor;
@@ -2139,7 +2160,7 @@ async function boot() {
       fly,
       ff,
       jump,
-      state: () => ({ mode: S.mode, n: me.n, time: net.sky.time, phase: net.sky.phase, map: net.sky.map.id, song: tricks.song, level: G.levelOf(profile.xp).level }),
+      state: () => ({ mode: S.mode, n: me.n, time: net.sky.time, phase: net.sky.phase, map: net.sky.map.id, song: tricks.song, level: G.levelOf(profile.xp).level, stolen: S.sunset.stolen }),
       // for store art and checks: open a screen, or stand in for a player who has flown a while
       title: showTitle,
       aviary: (tab = 'birds') => {
@@ -2154,6 +2175,11 @@ async function boot() {
         const sky = activeSky();
         placeLeader(x, z, yaw, 40, sky.map);
         cam.pos.set(x - Math.cos(yaw) * 16, 46, z - Math.sin(yaw) * 16);
+      },
+      // hold the camera at pos looking at look (both offsets from my flock with follow true, or along its heading with
+      // 'rel'; with 'look' only what it looks at follows), or let it go with no pos
+      cam: (pos, look, follow = false) => {
+        S.camHold = pos ? { pos, look, follow, snap: true } : null;
       },
       say: (text, dur = 3, at = 0) => {
         hud.showHint(text, dur);

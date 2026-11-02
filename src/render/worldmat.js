@@ -152,7 +152,7 @@ vec3 pN = normalize(vWNormal);
           if (!door && open >= 0.3 && (abs(fx) < 0.035 || abs(fy - (wy0 + wy1) * 0.5) < 0.035)) glass = wall * 0.95;
           c = mix(c, glass, 1.0 - far * 0.35);
           float lit = step(wid, 0.2 + uDusk * 0.6) * smoothstep(0.08, 0.6, uDusk) * (door ? 0.35 : open < 0.3 ? 0.25 : 1.0);
-          surfEmit += vec3(1.0, 0.62, 0.26) * lit * (0.75 + 0.5 * h21(vec2(wid, 3.1))) * 1.6;
+          surfEmit += vec3(1.0, 0.62, 0.26) * lit * (0.75 + 0.5 * h21(vec2(wid, 3.1))) * 1.2;
         }
       }
     } else if (style < 5.5) {
@@ -170,7 +170,7 @@ vec3 pN = normalize(vWNormal);
         if (abs(fx) < sp * 0.42 && fy > 0.25 && fy < 2.7) {
           vec3 shop = vec3(0.14, 0.16, 0.2) + vec3(0.1) * smoothstep(1.4, 2.7, fy);
           c = mix(c, shop, 1.0 - far * 0.3);
-          surfEmit += vec3(1.0, 0.7, 0.35) * step(wid, 0.25 + uDusk * 0.7) * smoothstep(0.1, 0.5, uDusk) * 1.3;
+          surfEmit += vec3(1.0, 0.7, 0.35) * step(wid, 0.2 + uDusk * 0.5) * smoothstep(0.1, 0.5, uDusk) * 0.8;
         }
         if (fy > 2.8 && fy < 3.3) c = mix(c, (wid < 0.5 ? vec3(0.55, 0.2, 0.18) : vec3(0.2, 0.36, 0.3)), 0.85 - far * 0.3);
       } else {
@@ -183,8 +183,9 @@ vec3 pN = normalize(vWNormal);
           vec3 glass = vec3(0.16, 0.19, 0.25) + vec3(0.16, 0.15, 0.17) * smoothstep(1.6, 3.0, fy);
           if (abs(fx) < 0.04) glass = wall;
           c = mix(c, glass, 1.0 - far * 0.35);
-          float lit = step(wid, 0.15 + uDusk * 0.55) * smoothstep(0.08, 0.6, uDusk);
-          surfEmit += mix(vec3(1.0, 0.62, 0.28), vec3(0.85, 0.9, 1.0), step(0.8, h21(vec2(wid, 7.0)))) * lit * (0.7 + 0.5 * h21(vec2(wid, 3.1))) * 1.5;
+          // a window here and there, not the whole block: the town still reads as stone and glass at dusk
+          float lit = step(wid, 0.08 + uDusk * 0.3) * smoothstep(0.08, 0.6, uDusk);
+          surfEmit += mix(vec3(1.0, 0.62, 0.28), vec3(0.85, 0.9, 1.0), step(0.8, h21(vec2(wid, 7.0)))) * lit * (0.6 + 0.4 * h21(vec2(wid, 3.1))) * 0.75;
         }
       }
     } else if (style < 6.5) {

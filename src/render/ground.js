@@ -294,8 +294,9 @@ function paintStreets(map, g, m) {
   g.lineCap = 'round';
   m.lineJoin = 'round';
   m.lineCap = 'round';
-  const paving = town ? L.stone : '#BCA684';
-  const edge = town ? '#9C8A74' : 'rgba(120,130,70,0.8)';
+  const canyon = map.id === 'redrock';
+  const paving = town ? L.stone : canyon ? '#C98D62' : '#BCA684';
+  const edge = town ? '#9C8A74' : canyon ? 'rgba(150,84,52,0.5)' : 'rgba(120,130,70,0.8)';
   const width = town ? 7.5 : 6;
   for (const pts of map.streets) {
     g.strokeStyle = edge;
@@ -448,6 +449,7 @@ uniform vec3 uShrubA;
 uniform vec3 uShrubB;
 uniform vec3 uPebble;
 uniform vec2 uSunXZ;
+uniform float uStrata; // 1: the canyon's coloured beds of rock
 varying vec3 vWPos;
 varying vec3 vWNormal;
 float h21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
@@ -526,6 +528,19 @@ const GROUND_DETAIL = /* glsl */ `
     float thin = smoothstep(0.9, 0.97, fract(vWPos.y * 1.6 + fbm3(wp * 0.03)));
     float streak = vnoise(vec2((wp.x + wp.y) * 0.9, vWPos.y * 0.12));
     c *= 1.0 - steep * (0.13 * band + 0.1 * thin + 0.12 * smoothstep(0.55, 0.85, streak) * (1.0 - far) - 0.05);
+    if (uStrata > 0.5) {
+      // beds of rock in their own colours, laid down level and followed round every cliff: a pale sandstone, the red, a
+      // dark ledge-former, an orange; each a little uneven in thickness, with desert varnish streaked down the faces
+      float sy = vWPos.y * 0.36 + fbm3(wp * 0.012) * 1.1;
+      float f = fract(sy / 3.0);
+      float pale = smoothstep(0.02, 0.08, f) * (1.0 - smoothstep(0.24, 0.3, f));
+      float dark = smoothstep(0.52, 0.56, f) * (1.0 - smoothstep(0.64, 0.68, f));
+      float orange = smoothstep(0.7, 0.76, f) * (1.0 - smoothstep(0.92, 0.98, f));
+      vec3 bed = c * (1.0 + pale * vec3(0.32, 0.36, 0.38) - dark * 0.34 + orange * vec3(0.12, 0.0, -0.1));
+      float varn = smoothstep(0.55, 0.8, vnoise(vec2(wp.x * 0.35 + wp.y * 0.35, vWPos.y * 0.05))) * (1.0 - far);
+      bed *= 1.0 - 0.22 * varn;
+      c = mix(c, bed, steep);
+    }
   }
   diffuseColor.rgb = c;
 }
@@ -542,7 +557,7 @@ const CLOUD_SHADOWS = /* glsl */ `
 const SCATTER = {
   saltmere: { s: [0.34, 0.1, 3.0, 0.24], a: '#4F6B33', b: '#6E8540', p: '#C8B98E' },
   stormfield: { s: [0.3, 0.12, 3.2, 0.22], a: '#4B6230', b: '#7C8A44', p: '#E8DFA8' },
-  redrock: { s: [0.42, 0.22, 3.4, 0.2], a: '#6B6F42', b: '#8C8A55', p: '#8A3E22' },
+  redrock: { s: [0.5, 0.16, 3.2, 0.19], a: '#6E7550', b: '#959A70', p: '#A8683F', strata: 1 },
   lantern: { s: [0.3, 0.08, 2.8, 0.24], a: '#3F5A30', b: '#5C7240', p: '#B9AE96' },
 };
 
@@ -644,6 +659,7 @@ export function buildGround(map, U, quality) {
     uShrubB: { value: new THREE.Color(sc.b) },
     uPebble: { value: new THREE.Color(sc.p) },
     uSunXZ: { value: new THREE.Vector2(0.7, 0.7) },
+    uStrata: { value: sc.strata ?? 0 },
   };
   mat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, U, own);

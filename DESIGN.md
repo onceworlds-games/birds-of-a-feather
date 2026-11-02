@@ -469,10 +469,16 @@ files):
   shuttered windows and doors, balconies and flower boxes, chimneys with smoke, a church tower in the square, a fountain, market
   stalls, washing across the lanes, a stone quay with bobbing boats, a lighthouse whose beam turns at dusk, a patchwork of fields
   with hedges and hay bales, telegraph wires everywhere.
-- **Redrock Canyon:** terraced red mesas and buttes with banded strata, a river in its gorge with sand banks, a railway on a
-  timber trestle (battered bents and cross-braces), a water tank, junipers and scrub scattered over the flats.
+- **Redrock Canyon:** a river gorge cut in terraces through red flats with sand banks and cottonwoods; flat-topped mesas on
+  cliffs over benches and skirts of fallen boulders, their beds of rock in their own colours (pale sandstone, red, a dark
+  ledge-former, orange) followed round every face; buttes with cairns, clusters of hoodoos under cap rocks, low scarps
+  wandering the flats, dry washes of pale gravel winding to the rim, sagebrush, junipers and dead snags everywhere, dust
+  devils whirling through the afternoon. A ranch (houses, a barn, corrals with cattle, a wind pump turning over its tank, hay),
+  a red dirt road to a rail halt (platform, station house, signal, a water tank on legs), and the railway: level across the
+  flats through cuttings and over banks, into a stone-portalled tunnel through a mesa at each end, over the gorge on a timber
+  trestle. A little steam train (engine, tender, boxcars, a tank car, a caboose) runs it, stops at the halt and puffs steam.
 - **Stormfield:** wheat and green fields in rows, farms with plank barns and silos, a windmill with turning sails, lattice
-  pylons, and the storm front's dark wall rolling across.
+  pylons, and the storm rolling across: a curtain of rain in drifting shafts, a dark shelf cloud over its edge, lightning.
 - **Lantern City:** dense rooftops and towers, lit windows and street lamps, flat roofs with parapets and clutter.
 
 The ground is painted once per place onto a canvas (tints, fields with rows, paved streets and squares, soft shade under every
@@ -512,7 +518,8 @@ the icon are drawn from it. The murmurations are the signature *in play*; the wi
 `ow.settings.quality`: low none, medium 1024, high 2048), a hemisphere light with a cool sky fill over warm ground bounce, sRGB
 output, ACES tone mapping with the exposure lifted a little as the light goes, exponential fog in the horizon's colour. The sky
 dome is a gradient shader with the sun's disc and a halo, driven by the sunset's time along with the sun's colour, intensity and
-angle (kept from dropping too low, so dusk stays readable): gold → ember → rose → dusk violet. Window lights come up in the dusk.
+angle (kept from dropping too low, so dusk stays readable): gold → ember → rose → dusk, warm to the end (coral and amber, never
+magenta), violet only after sundown. Window lights come up in the dusk, a window here and there so a town still reads as a town.
 Bloom on medium and high only, then a grade pass: a little more saturation (held back in deep shadow and near white), a gentle
 contrast, and a vignette tinted by the sky. **The camera** looks down at 54° from high over a point between the lead bird and its
 flock's middle, a little ahead, at 50 + 1.75·√n u (so a bigger flock sees more of the map; 12% further on a phone held upright),
@@ -572,13 +579,13 @@ All rendered by the game itself in poster mode (`?poster=<name>`: fixed seed, th
 - **Icon:** a Cobalt flock curling behind its lead bird in front of a big sun's disc. No text.
 - **Badges** (16): each a bold symbol on a coloured disc (a bird on a wire, a hawk's head, a thermal spiral, feathers, a star
   over a perched bird, a calendar of sunsets...).
-- **Trailer** (33 s, 1280×720, real play on autoplay, every shot from the game's own frames and sound): 0-3 s your small
-  flock over Saltmere's roofs with the hawk swooping past and "Biggest flock at sundown wins"; 3-6 s gathering round the
-  windmill in gold light (`Chorus ×2`); 6-9 s a White Raven caught off the boats (+400, a new bird, the board turns to you);
-  9-12 s dusk, the hawk's ring on your 494 and its strike; 12-17 s Redrock's gorge, Stormfield's fields, Lantern City's lit
-  towers; 17-26 s the last seconds (`Thermal`, `Slingshot`), sundown, the flocks swooping to the wires, "You: biggest flock at
-  sundown, 555", the tally filling levels; a glimpse of the Aviary; the unlocks (trails, flair); 31-33 s the name over the
-  wires at a pink dawn. The music is the game's own score, the effects each shot's own.
+- **Trailer** (32 s, 1280×720, real play on autoplay, every shot from the game's own frames and sound), nearly all flight:
+  0-3 s your small flock over Saltmere's roofs with the hawk swooping past and "Biggest flock at sundown wins"; 3-6 s gathering
+  round the windmill in gold light (`Chorus ×2`); 6-9 s a White Raven caught off the boats (+400); 9-12 s dusk, the hawk's ring
+  on your 494 and its strike; 12-21 s a flock over each place: Redrock's gorge, Stormfield's fields under the hawk's ring,
+  Lantern City's towers; 21-28 s the last seconds (`Slingshot`, cutting a rival's tail), sundown and the swoop to the wires;
+  28-29 s the tally in a glance (biggest flock, a level and its unlocks); 29-32 s the name over the wires at a pink dawn. The
+  music is the game's own score, the effects each shot's own.
 
 ## Originality check
 

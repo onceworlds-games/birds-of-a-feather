@@ -1,5 +1,6 @@
 // The things that make a place: boats that bob at their moorings, a lighthouse whose beam turns at dusk, windmills with
-// turning sails, lattice pylons, silos, hay bales, water towers, cairns; in the harbour town a fountain, market stalls,
+// turning sails, lattice pylons, silos, hay bales, water towers, cairns; in the canyon hoodoos, fallen boulders, a ranch's
+// corrals and wind pump, the railway's track, tunnel portals and halt; in the harbour town a fountain, market stalls,
 // street lamps and washing strung across the lanes. Static pieces go into the town's builder; moving ones are meshes.
 
 import * as THREE from 'three';
@@ -14,7 +15,7 @@ const LAUNDRY = ['#F4F0E6', '#E8566A', '#5A8AC8', '#F2C84A', '#FFFFFF', '#88C0A0
 /** Static props into builder B. Returns the moving ones' definitions. */
 export function buildProps(B, map) {
   const rng = makeRng(`${map.id}:props`);
-  const moving = { boats: [], sails: [], beams: [], smoke: [] };
+  const moving = { boats: [], sails: [], beams: [], smoke: [], fans: [] };
   for (const p of map.props) {
     switch (p.kind) {
       case 'boat':
@@ -68,6 +69,48 @@ export function buildProps(B, map) {
         B.blob(p.x - 0.1, p.y + 1.7, p.z + 0.1, 0.6, 0.6, 0.2, 0.75);
         break;
       }
+      case 'hoodoo':
+        hoodoo(B, p);
+        break;
+      case 'boulder': {
+        const k = 0.88 + 0.24 * p.seed;
+        B.color(p.seed > 0.5 ? '#A9532F' : '#B8673E', k).surf(SURF.leaf, p.seed);
+        B.blob(p.x, p.y - p.s * 0.25, p.z, p.s, 0.72, 0.22, 0.55);
+        break;
+      }
+      case 'windpump':
+        windpump(B, p);
+        moving.fans.push({ x: p.x + Math.cos(p.yaw) * 0.5, y: p.y + 11.2, z: p.z + Math.sin(p.yaw) * 0.5, yaw: p.yaw });
+        break;
+      case 'trough':
+        B.color('#7E8A8C').surf(SURF.plain);
+        B.cyl(p.x, p.y - 0.2, p.z, 2.2, 2.2, 1.0, 16, false);
+        B.color('#5E9AB0');
+        B.cyl(p.x, p.y + 0.6, p.z, 2.12, 2.12, 0.05, 16, true);
+        break;
+      case 'corral':
+        corral(B, p, rng);
+        break;
+      case 'track':
+        track(B, p);
+        break;
+      case 'portal':
+        portal(B, p);
+        break;
+      case 'platform':
+        platform(B, p, map);
+        break;
+      case 'signal': {
+        B.color('#3A3236').surf(SURF.plain);
+        B.cyl(p.x, p.y, p.z, 0.13, 0.1, 6.4, 6, true);
+        B.color('#C83A2E');
+        B.box(p.x + 0.9, p.y + 5.6, p.z + 0.15, 1.8, 0.32, 0.08, 0.15);
+        B.color('#F2E6D0');
+        B.box(p.x + 1.45, p.y + 5.6, p.z + 0.16, 0.3, 0.32, 0.09, 0.15);
+        B.color('#FFD890').surf(SURF.lamp);
+        B.box(p.x - 0.05, p.y + 5.35, p.z + 0.2, 0.26, 0.26, 0.12, 0);
+        break;
+      }
       default:
         break;
     }
@@ -75,6 +118,236 @@ export function buildProps(B, map) {
   if (map.id === 'saltmere') harbourTown(B, map, rng, moving);
   if (map.id === 'lantern') cityStreets(B, map, rng);
   return moving;
+}
+
+/** A hoodoo: a spire of soft rock in faint bands on a scree foot, swelling and pinched, under a harder cap rock. */
+function hoodoo(B, p) {
+  const bands = ['#D4976C', '#C77A50', '#BA6B44', '#D9A47A'];
+  const mottled = (seed) => B.surf(SURF.leaf, seed); // foliage's light-and-shade clumps read as weathered rock
+  const n = 2 + Math.floor(p.seed * 3);
+  const w = p.w * 1.15;
+  const lean = (p.seed - 0.5) * 0.08;
+  // the foot: a skirt of scree
+  B.color('#B8653E', 0.95);
+  mottled(p.seed);
+  B.cyl(p.x, p.y - 0.8, p.z, w * 2.1, w * 1.05, 2.2, 8, false);
+  let y = p.y + 1.2;
+  const seg = (p.h - 1.0) / n;
+  for (let k = 0; k < n; k++) {
+    const ox = lean * (y - p.y);
+    const fat = w * (1.05 - 0.12 * k);
+    B.color(bands[(k + Math.floor(p.seed * 7)) % bands.length], 0.94 + 0.12 * ((p.seed * (k + 3) * 7.3) % 1));
+    mottled(p.seed + k * 0.17);
+    B.cyl(p.x + ox, y, p.z, fat * 0.92, fat, seg * 0.45, 8, false);
+    B.cyl(p.x + ox, y + seg * 0.45, p.z, fat, fat * 0.72, seg * 0.55, 8, false);
+    y += seg;
+  }
+  // the cap rock, a little wider than the neck under it
+  const ox = lean * (y - p.y);
+  B.color('#9A5E44');
+  mottled(p.seed + 0.5);
+  B.cyl(p.x + ox, y - 0.15, p.z, w * 0.8, w * 1.2, 0.5, 8, false);
+  B.blob(p.x + ox, y + 0.35, p.z, w * 1.2, 0.42, 0.18, 0.6);
+}
+
+/** The ranch's wind pump: a tapering lattice tower with a platform; its wheel is a moving part (fanGeometry). */
+function windpump(B, p) {
+  const H = 10.6;
+  const legs = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+  const wide = (y) => 1.7 - 1.35 * (y / H);
+  const at = (u, v, y) => [p.x + u * wide(y), p.y + y, p.z + v * wide(y)];
+  B.color('#6E6A6A').surf(SURF.plain);
+  for (const [u, v] of legs) B.tube([at(u, v, -0.3), at(u, v, H)], 0.09);
+  for (let y = 0; y < H - 1; y += 2.5) {
+    const y2 = Math.min(H, y + 2.5);
+    for (let k = 0; k < 4; k++) {
+      const [u0, v0] = legs[k];
+      const [u1, v1] = legs[(k + 1) % 4];
+      B.tube([at(u0, v0, y2), at(u1, v1, y2)], 0.05);
+      B.tube([at(u0, v0, y), at(u1, v1, y2)], 0.035);
+    }
+  }
+  B.color('#8A6A4E').surf(SURF.wood, 0.3);
+  B.box(p.x, p.y + H - 0.1, p.z, 1.3, 0.12, 1.3, 0);
+  // the head and its tail vane, turned into the wind
+  const c = Math.cos(p.yaw);
+  const s = Math.sin(p.yaw);
+  B.color('#5A5658').surf(SURF.plain);
+  B.box(p.x, p.y + H, p.z, 0.5, 0.7, 0.5, -p.yaw);
+  B.tube([[p.x, p.y + H + 0.5, p.z], [p.x - c * 3.2, p.y + H + 0.6, p.z - s * 3.2]], 0.07);
+  B.color('#C9C2B8');
+  const tx = p.x - c * 3.2;
+  const tz = p.z - s * 3.2;
+  B.quad([tx, p.y + H - 0.2, tz], [tx + c * 1.4, p.y + H + 0.1, tz + s * 1.4], [tx + c * 1.4, p.y + H + 1.1, tz + s * 1.4], [tx, p.y + H + 1.5, tz]);
+  B.quad([tx, p.y + H + 1.5, tz], [tx + c * 1.4, p.y + H + 1.1, tz + s * 1.4], [tx + c * 1.4, p.y + H + 0.1, tz + s * 1.4], [tx, p.y + H - 0.2, tz]);
+  // the pump rod down the middle to a little pump house on the trough
+  B.color('#4A4648');
+  B.cyl(p.x, p.y, p.z, 0.05, 0.05, H, 4, false);
+  B.color('#8A6A4E').surf(SURF.wood, 0.6);
+  B.box(p.x, p.y - 0.2, p.z, 1.1, 1.0, 1.1, 0);
+}
+
+/** The wind pump's wheel: a ring of sheet-metal blades round a hub, in its own frame (it turns about x). */
+export function fanGeometry() {
+  const S = new Builder();
+  const n = 18;
+  for (let k = 0; k < n; k++) {
+    const a = (k / n) * Math.PI * 2;
+    const c = Math.cos(a);
+    const s = Math.sin(a);
+    const P = (u, v, w) => [w, c * u - s * v, s * u + c * v];
+    S.color(k % 2 ? '#C9C2B8' : '#B0A89E').surf(SURF.plain);
+    // each blade a little twisted, so the wheel reads as one at a glance
+    S.quad(P(0.6, -0.18, -0.06), P(2.1, -0.32, -0.1), P(2.1, 0.32, 0.1), P(0.6, 0.18, 0.06));
+    S.quad(P(0.6, 0.18, 0.06), P(2.1, 0.32, 0.1), P(2.1, -0.32, -0.1), P(0.6, -0.18, -0.06));
+  }
+  S.color('#5A5658');
+  for (const r of [0.6, 2.1]) {
+    const pts = [];
+    for (let k = 0; k <= 16; k++) {
+      const a = (k / 16) * Math.PI * 2;
+      pts.push([0, Math.cos(a) * r, Math.sin(a) * r]);
+    }
+    S.tube(pts, 0.04);
+  }
+  S.blob(0, 0, 0, 0.3, 1, 0, 0.8);
+  return S.build();
+}
+
+const HIDES = ['#6A4030', '#3A3030', '#8A5A3A', '#E8DCCC', '#B07850'];
+
+/** A corral: post-and-rail fence round a yard with a gate gap, and some cattle standing about in it. */
+function corral(B, p, rng) {
+  const c = Math.cos(p.yaw);
+  const s = Math.sin(p.yaw);
+  const P = (u, v) => [p.x + c * u - s * v, p.z + s * u + c * v];
+  const hw = p.w / 2;
+  const hd = p.d / 2;
+  const sides = [[-hw, -hd, hw, -hd], [hw, -hd, hw, hd], [hw, hd, -hw, hd], [-hw, hd, -hw, -hd]];
+  sides.forEach(([u0, v0, u1, v1], k) => {
+    const len = Math.hypot(u1 - u0, v1 - v0);
+    const n = Math.max(2, Math.round(len / 2.6));
+    const gate = k === 2 ? Math.floor(n / 2) : -1;
+    for (let i = 0; i <= n; i++) {
+      const [x, z] = P(lerpN(u0, u1, i / n), lerpN(v0, v1, i / n));
+      B.color('#6E5440', 0.9 + 0.2 * rng.next()).surf(SURF.wood, rng.next());
+      B.box(x, p.y - 0.3, z, 0.2, 1.75, 0.2, -p.yaw);
+      if (i === n || i === gate) continue;
+      const [x2, z2] = P(lerpN(u0, u1, (i + 1) / n), lerpN(v0, v1, (i + 1) / n));
+      B.color('#8A6A4E').surf(SURF.wood, rng.next());
+      for (const h of [0.65, 1.25]) B.tube([[x, p.y + h, z], [x2, p.y + h, z2]], 0.07);
+    }
+  });
+  for (let k = 0; k < (p.cattle ?? 0); k++) {
+    const u = rng.range(-hw + 2, hw - 2);
+    const v = rng.range(-hd + 2, hd - 2);
+    const [x, z] = P(u, v);
+    const yaw = rng.range(0, Math.PI * 2);
+    const hx = Math.cos(yaw);
+    const hz = Math.sin(yaw);
+    const hide = HIDES[Math.floor(rng.next() * HIDES.length)];
+    B.color(hide).surf(SURF.plain);
+    B.blob(x, p.y + 1.05, z, 0.62, 0.62, 0, 0.75);
+    B.blob(x + hx * 0.55, p.y + 1.05, z + hz * 0.55, 0.58, 0.62, 0, 0.75);
+    B.color(hide, 0.85);
+    B.blob(x + hx * 1.25, p.y + 1.15 - 0.2 * rng.next(), z + hz * 1.25, 0.32, 0.85, 0, 0.75);
+    B.color('#3A3030');
+    for (const [a, b] of [[-0.35, -0.3], [-0.35, 0.3], [0.85, -0.3], [0.85, 0.3]]) {
+      B.box(x + hx * a - hz * b, p.y - 0.1, z + hz * a + hx * b, 0.14, 0.75, 0.14, 0);
+    }
+  }
+}
+
+const lerpN = (a, b, t) => a + (b - a) * t;
+
+/** Track across the flats: a bank of grey ballast, sleepers, two rails; level at y along z, from x0 to x1. */
+function track(B, p) {
+  const x0 = Math.min(p.x0, p.x1);
+  const x1 = Math.max(p.x0, p.x1);
+  const w = x1 - x0;
+  B.color('#8A7A6C').surf(SURF.stone, 0.4);
+  B.box((x0 + x1) / 2, p.y - 0.55, p.z, w, 0.55, 3.4, 0);
+  B.color('#4A3426').surf(SURF.plain);
+  for (let x = x0 + 0.5; x < x1; x += 1.15) B.box(x, p.y, p.z, 0.5, 0.14, 3.1, 0);
+  B.color('#9A98A0');
+  for (const v of [-0.72, 0.72]) B.box((x0 + x1) / 2, p.y + 0.14, p.z + v, w, 0.13, 0.13, 0);
+}
+
+/** A quad turned to face `out` (so the winding never matters). */
+function quadOut(B, q, out) {
+  const [a, b, c] = q;
+  const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+  const v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+  const n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+  B.quad(...(n[0] * out[0] + n[1] * out[1] + n[2] * out[2] < 0 ? q.slice().reverse() : q));
+}
+
+/** A tunnel portal of dressed stone, its dark mouth just in front of the cliff face; dir: +1 faces +x. */
+function portal(B, p) {
+  const d = p.dir;
+  const y = p.y - 0.4;
+  const R = 3.1; // the arch's inner radius
+  const T = 1.4; // its ring of stones
+  const top = 4.2; // where it springs
+  const u0 = -1.2; // back (in the hill) and front, along x from p.x
+  const u1 = 2.2;
+  const X = (u) => p.x + d * u;
+  B.color('#C9A27A').surf(SURF.stone, 0.31);
+  for (const v of [-1, 1]) B.box(X((u0 + u1) / 2), y, p.z + v * (R + 0.75), u1 - u0, top + 0.6, 1.5, 0);
+  const n = 9;
+  for (let k = 0; k < n; k++) {
+    const a0 = (k / n) * Math.PI;
+    const a1 = ((k + 1) / n) * Math.PI;
+    const am = (a0 + a1) / 2;
+    const P = (a, r, u) => [X(u), y + top + Math.sin(a) * r, p.z + Math.cos(a) * r];
+    B.color(k === 4 ? '#B38A62' : '#C9A27A', 0.95 + 0.1 * ((k * 0.37) % 1));
+    quadOut(B, [P(a0, R, u1), P(a1, R, u1), P(a1, R + T, u1), P(a0, R + T, u1)], [d, 0, 0]);
+    quadOut(B, [P(a0, R + T, u0), P(a1, R + T, u0), P(a1, R + T, u1), P(a0, R + T, u1)], [0, Math.sin(am), Math.cos(am)]);
+    quadOut(B, [P(a0, R, u0), P(a1, R, u0), P(a1, R, u1), P(a0, R, u1)], [0, -Math.sin(am), -Math.cos(am)]);
+  }
+  // a parapet over it and wing walls holding back the cutting
+  B.color('#B8956E').surf(SURF.stone, 0.62);
+  B.box(X((u0 + u1) / 2), y + top + R + T - 0.3, p.z, u1 - u0 + 0.4, 1.2, 2 * (R + 1.6), 0);
+  for (const v of [-1, 1]) B.box(X(u1 + 1.6), y - 0.5, p.z + v * (R + 2.3), 3.6, top, 1.2, -v * d * 0.4);
+  // the mouth: black, just clear of the hillside, so the train runs into the dark
+  B.color('#0E0A0C').surf(SURF.plain);
+  const mx = X(0.2);
+  for (let k = 0; k < 12; k++) {
+    const a0 = (k / 12) * Math.PI;
+    const a1 = ((k + 1) / 12) * Math.PI;
+    const za = p.z + Math.cos(a0) * R;
+    const zb = p.z + Math.cos(a1) * R;
+    quadOut(B, [[mx, y, za], [mx, y, zb], [mx, y + top + Math.sin(a1) * R, zb], [mx, y + top + Math.sin(a0) * R, za]], [d, 0, 0]);
+  }
+}
+
+/** The halt's platform: a raised edge of planks on a stone bank, a bench, a lamp, a board. */
+function platform(B, p, map) {
+  const y = p.y + 0.9;
+  B.color('#B89A7A').surf(SURF.stone, 0.12);
+  B.box(p.x, p.y - 1.4, p.z + 0.4, p.w, y - p.y + 1.4 - 0.15, p.d, 0);
+  B.color('#8A6A4E').surf(SURF.wood, 0.4);
+  B.box(p.x, y - 0.15, p.z + 0.4, p.w, 0.15, p.d, 0);
+  B.color('#E8DCC4').surf(SURF.plain);
+  B.box(p.x, y - 0.1, p.z - p.d / 2 + 0.55, p.w, 0.11, 0.25, 0);
+  // a bench, a lamp at each end, the name board
+  B.color('#6A4A34').surf(SURF.wood, 0.2);
+  B.box(p.x - 6, y, p.z + 1.4, 2.2, 0.5, 0.6, 0);
+  B.box(p.x - 6, y + 0.5, p.z + 1.7, 2.2, 0.5, 0.1, 0);
+  for (const u of [-p.w / 2 + 1, p.w / 2 - 1]) {
+    B.color('#2B2730').surf(SURF.plain);
+    B.cyl(p.x + u, y, p.z + 1.6, 0.1, 0.07, 3.2, 5, false);
+    B.box(p.x + u, y + 3.15, p.z + 1.6, 0.4, 0.08, 0.4, 0);
+    B.color('#FFD890').surf(SURF.lamp);
+    B.box(p.x + u, y + 2.7, p.z + 1.6, 0.28, 0.42, 0.28, 0);
+  }
+  B.color('#2B2730').surf(SURF.plain);
+  for (const u of [-1.6, 1.6]) B.box(p.x + 4 + u, y, p.z + 1.5, 0.12, 2.4, 0.12, 0);
+  B.color('#F2E6D0');
+  B.box(p.x + 4, y + 2.0, p.z + 1.5, 3.6, 0.8, 0.12, 0);
+  B.color('#3A2A22');
+  B.box(p.x + 4, y + 2.25, p.z + 1.43, 2.6, 0.3, 0.02, 0);
+  void map;
 }
 
 function lighthouse(B, p) {

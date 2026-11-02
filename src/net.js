@@ -4,7 +4,7 @@
 // room.
 
 import { Sky } from './sim/sky.js';
-import { ROUND, SKY, SKILLS } from './sim/config.js';
+import { ROUND, SKY, SKILLS, PLACE_TWIST } from './sim/config.js';
 import { hashString } from './sim/rng.js';
 import * as W from './sim/wire.js';
 
@@ -23,7 +23,8 @@ export class Net {
     this.room = room;
     this.now = now;
     this.on = on;
-    this.sky = new Sky({ mapId, rotate, seed: seed ?? hashString(String(Date.now())) % 1e9, judgeDelay: SKY.judgeDelay, authority: false });
+    // the place's twist from the first sunset (a sky that later moves on picks each place's up in setMap)
+    this.sky = new Sky({ mapId, rotate, twist: PLACE_TWIST[mapId] ?? null, seed: seed ?? hashString(String(Date.now())) % 1e9, judgeDelay: SKY.judgeDelay, authority: false });
     this.sky.drainEvents();
     this.authority = false;
     this.dawnAt = now();

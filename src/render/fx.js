@@ -405,49 +405,182 @@ export class Fx {
     this.featherScale = q === 'low' ? 0.5 : 1;
   }
 
-  /** The storm wall for a place that has one (null removes it). */
+  /**
+   * The storm for a place that has one (false removes it): a curtain of rain in shafts behind the front, a dark shelf cloud
+   * rolling over its edge, an overcast ceiling behind, and lightning now and then. It all moves with the front (setStormX).
+   */
   setStorm(on) {
     if (on && !this.storm) {
+      const group = new THREE.Group();
+      const uniforms = { time: { value: 0 }, flash: { value: 0 }, ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog) };
+      // the rain: a deep translucent wall, its front edge soft
       const geo = new THREE.BoxGeometry(600, 90, 700);
       geo.translate(-300, 45, 0);
-      const mat = new THREE.ShaderMaterial({
-        uniforms: { time: { value: 0 }, ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog) },
-        transparent: true,
-        depthWrite: false,
-        side: THREE.DoubleSide,
-        fog: true,
-        vertexShader: /* glsl */ `
-          varying vec3 vP;
-          #include <fog_pars_vertex>
-          void main() {
-            vP = position;
-            vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-            gl_Position = projectionMatrix * mvPosition;
-            #include <fog_vertex>
-          }`,
-        fragmentShader: /* glsl */ `
-          uniform float time;
-          varying vec3 vP;
-          #include <fog_pars_fragment>
-          float h(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
-          void main() {
-            float edge = smoothstep(0.0, -18.0, vP.x);
-            float streak = step(0.82, h(vec2(floor(vP.z * 1.3), floor(vP.y * 0.12 + time * 3.0))));
-            vec3 col = mix(vec3(0.23, 0.21, 0.31), vec3(0.62, 0.62, 0.72), streak * 0.5);
-            float a = 0.38 * edge + streak * 0.08 * edge;
-            gl_FragColor = vec4(col, a);
-            #include <fog_fragment>
-          }`,
-      });
-      this.storm = new THREE.Mesh(geo, mat);
-      this.storm.renderOrder = 4;
-      this.scene.add(this.storm);
+      const rain = new THREE.Mesh(
+        geo,
+        new THREE.ShaderMaterial({
+          uniforms,
+          transparent: true,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+          fog: true,
+          vertexShader: /* glsl */ `
+            varying vec3 vP;
+            #include <fog_pars_vertex>
+            void main() {
+              vP = position;
+              vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+              gl_Position = projectionMatrix * mvPosition;
+              #include <fog_vertex>
+            }`,
+          fragmentShader: /* glsl */ `
+            uniform float time;
+            uniform float flash;
+            varying vec3 vP;
+            #include <fog_pars_fragment>
+            float h(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+            float n(vec2 p) { vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
+              return mix(mix(h(i), h(i + vec2(1.0, 0.0)), f.x), mix(h(i + vec2(0.0, 1.0)), h(i + vec2(1.0, 1.0)), f.x), f.y); }
+            void main() {
+              float edge = smoothstep(0.0, -16.0, vP.x);
+              // shafts of heavier rain drifting along the front, heavier low down
+              float shaft = 0.55 + 0.9 * n(vec2(vP.z * 0.016 + time * 0.05, vP.x * 0.008));
+              float low = 1.0 - 0.4 * smoothstep(15.0, 90.0, vP.y);
+              float col0 = floor(vP.z * 1.3 + floor(vP.x * 0.5) * 0.37);
+              float streak = step(0.8, h(vec2(col0, floor(vP.y * 0.12 + time * 3.2 + h(vec2(col0, 3.0)) * 9.0))));
+              vec3 col = mix(vec3(0.2, 0.2, 0.27), vec3(0.62, 0.64, 0.74), streak * 0.5);
+              col += vec3(0.7, 0.74, 0.92) * flash * 0.8;
+              float a = (0.36 * shaft * low + streak * 0.09) * edge;
+              gl_FragColor = vec4(col, min(a, 0.85));
+              #include <fog_fragment>
+            }`,
+        }),
+      );
+      rain.renderOrder = 4;
+      group.add(rain);
+      // the shelf cloud on the front and the ceiling behind it: big soft dark puffs
+      const N = 150;
+      const pos = new Float32Array(N * 3);
+      const dat = new Float32Array(N * 2);
+      let seed = 7;
+      const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+      for (let k = 0; k < N; k++) {
+        const shelf = k < 90;
+        pos[k * 3] = shelf ? -22 + rnd() * 34 : -40 - rnd() * 230;
+        pos[k * 3 + 1] = shelf ? 56 + rnd() * 22 + (pos[k * 3] + 22) * 0.25 : 74 + rnd() * 18;
+        pos[k * 3 + 2] = -360 + rnd() * 720;
+        dat[k * 2] = shelf ? 36 + rnd() * 30 : 60 + rnd() * 50;
+        dat[k * 2 + 1] = rnd();
+      }
+      const cg = new THREE.BufferGeometry();
+      cg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      cg.setAttribute('dat', new THREE.BufferAttribute(dat, 2));
+      const cloud = new THREE.Points(
+        cg,
+        new THREE.ShaderMaterial({
+          uniforms: { ...uniforms, scale: this.featherUniforms.scale },
+          transparent: true,
+          depthWrite: false,
+          fog: true,
+          vertexShader: /* glsl */ `
+            attribute vec2 dat;
+            uniform float time;
+            uniform float scale;
+            varying float vSeed;
+            #include <fog_pars_vertex>
+            void main() {
+              vSeed = dat.y;
+              vec3 p = position + vec3(sin(time * 0.15 + dat.y * 20.0) * 3.0, sin(time * 0.2 + dat.y * 13.0) * 1.5, 0.0);
+              vec4 mvPosition = modelViewMatrix * vec4(p, 1.0);
+              gl_Position = projectionMatrix * mvPosition;
+              gl_PointSize = clamp(dat.x * scale / max(1.0, -mvPosition.z), 0.0, 600.0);
+              #include <fog_vertex>
+            }`,
+          fragmentShader: /* glsl */ `
+            uniform float flash;
+            varying float vSeed;
+            #include <fog_pars_fragment>
+            float h(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+            float n(vec2 p) { vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
+              return mix(mix(h(i), h(i + vec2(1.0, 0.0)), f.x), mix(h(i + vec2(0.0, 1.0)), h(i + vec2(1.0, 1.0)), f.x), f.y); }
+            void main() {
+              vec2 q = gl_PointCoord - 0.5;
+              float nn = n(q * 5.0 + vSeed * 40.0) * 0.6 + n(q * 11.0 + vSeed * 17.0) * 0.4;
+              float d = length(q) + (nn - 0.5) * 0.2;
+              float a = smoothstep(0.5, 0.2, d) * 0.9;
+              // lit a little on top, dark beneath; lightning lights it from inside
+              vec3 col = mix(vec3(0.17, 0.17, 0.23), vec3(0.42, 0.42, 0.5), clamp(0.5 - q.y * 1.4 + nn * 0.25, 0.0, 1.0));
+              col += vec3(0.6, 0.62, 0.8) * flash * (0.6 + 0.4 * nn);
+              gl_FragColor = vec4(col, a);
+              #include <fog_fragment>
+            }`,
+        }),
+      );
+      cloud.frustumCulled = false;
+      cloud.renderOrder = 5;
+      group.add(cloud);
+      // the bolt: a jagged ribbon, rebuilt for each strike
+      const bolt = new THREE.Mesh(
+        new THREE.BufferGeometry(),
+        new THREE.MeshBasicMaterial({ color: '#E8ECFF', transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false }),
+      );
+      bolt.frustumCulled = false;
+      bolt.renderOrder = 6;
+      group.add(bolt);
+      this.storm = group;
+      this.stormParts = { uniforms, bolt, next: 3, flash: 0, flicker: 0 };
+      this.scene.add(group);
     } else if (!on && this.storm) {
       this.scene.remove(this.storm);
-      this.storm.geometry.dispose();
-      this.storm.material.dispose();
+      this.storm.traverse((o) => {
+        o.geometry?.dispose();
+        o.material?.dispose();
+      });
       this.storm = null;
+      this.stormParts = null;
     }
+  }
+
+  /** A lightning strike somewhere along the front: a new bolt, and the flash that lights the storm. */
+  strike() {
+    const P = this.stormParts;
+    const rnd = Math.random;
+    const z0 = -200 + rnd() * 400;
+    const x0 = -8 - rnd() * 50;
+    const pts = [];
+    let x = x0;
+    let z = z0;
+    for (let y = 60; y > 0; y -= 4 + rnd() * 3) {
+      pts.push([x, y, z]);
+      x += (rnd() - 0.5) * 4;
+      z += (rnd() - 0.5) * 7;
+    }
+    pts.push([x, -2, z]);
+    const v = [];
+    const quad = (a, b, w) => {
+      v.push(a[0], a[1], a[2] - w, b[0], b[1], b[2] - w, b[0], b[1], b[2] + w, a[0], a[1], a[2] - w, b[0], b[1], b[2] + w, a[0], a[1], a[2] + w);
+    };
+    for (let k = 1; k < pts.length; k++) quad(pts[k - 1], pts[k], 0.45);
+    // a fork off the upper half
+    const at = pts[Math.min(pts.length - 2, 2 + Math.floor(rnd() * 3))];
+    let fx = at[0];
+    let fz = at[2];
+    let fy = at[1];
+    for (let k = 0; k < 4; k++) {
+      const nx = fx + (rnd() - 0.5) * 4;
+      const nz = fz + (rnd() > 0.5 ? 1 : -1) * (3 + rnd() * 4);
+      const ny = fy - 4 - rnd() * 3;
+      quad([fx, fy, fz], [nx, ny, nz], 0.25);
+      fx = nx;
+      fz = nz;
+      fy = ny;
+    }
+    P.bolt.geometry.dispose();
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
+    P.bolt.geometry = g;
+    P.flash = 1;
+    P.flicker = 0.12;
   }
 
   // ---------------------------------------------------------------- trails
@@ -831,9 +964,21 @@ export class Fx {
       this.pulseRing.material.opacity = 0.85 * (1 - k);
     }
     if (this.storm) {
-      this.storm.material.uniforms.time.value = this.time;
-      this.storm.material.uniforms.fogColor.value.copy(scene.fog.color);
-      this.storm.material.uniforms.fogDensity.value = scene.fog.density;
+      const P = this.stormParts;
+      P.uniforms.time.value = this.time;
+      P.uniforms.fogColor.value.copy(scene.fog.color);
+      P.uniforms.fogDensity.value = scene.fog.density;
+      // lightning every few seconds: a flash, a flicker, and the dark again
+      P.next -= dt;
+      if (P.next <= 0 && this.storm.visible) {
+        this.strike();
+        P.next = 4 + Math.random() * 6;
+      }
+      P.flicker -= dt;
+      if (P.flicker <= 0 && P.flicker > -dt && P.flash > 0.2) P.flash = 0.9;
+      P.flash = Math.max(0, P.flash - dt * 3.2);
+      P.uniforms.flash.value = P.flash * P.flash;
+      P.bolt.material.opacity = Math.min(1, P.flash * 1.6);
     }
   }
 
